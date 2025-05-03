@@ -10,6 +10,10 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=${DB_NAME}
       - DB_SSLMODE=${DB_SSLMODE}
+    volumes:
+      - ./static:/app/static
+      - ./templates:/app/templates
+      - ./data:/app/data
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
@@ -21,7 +25,3 @@ services:
       - "traefik.http.routers.planfact.middlewares=auth"
       - "traefik.http.middlewares.auth.basicauth.users=${HTTP_BASIC_AUTH}"
       - "traefik.http.middlewares.auth.basicauth.removeheader=true"
-    volumes:
-      - ./static:/app/static
-      - ./templates:/app/templates
-      - ./astralswag.db:/app/astralswag.db

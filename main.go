@@ -234,8 +234,13 @@ func main() {
 	initDB()
 	defer db.Close()
 
+	// Создаем директорию для данных, если её нет
+	if err := os.MkdirAll("data", 0755); err != nil {
+		log.Fatal("Failed to create data directory:", err)
+	}
+
 	// Подключаемся к SQLite
-	sqliteDB, err := sql.Open("sqlite3", "./astralswag.db")
+	sqliteDB, err := sql.Open("sqlite3", "./data/astralswag.db")
 	if err != nil {
 		log.Fatal("Failed to open SQLite database:", err)
 	}
