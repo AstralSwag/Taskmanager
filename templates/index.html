@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Александр навайбкодил</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/css/style.css" rel="stylesheet">
+</head>
+<body>
+    <div class="floating-counter" style="display: none;">
+        <div class="counter-content">
+            <span class="counter-label">Total estimates:</span>
+            <span class="counter-value">0</span>
+        </div>
+    </div>
+    <button class="fact-button" onclick="showFactModal()">FACT</button>
+    <button class="floating-button" onclick="showCommentsModal()">
+        Make plan
+    </button>
+    <div class="modal fade" id="commentsModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Comments</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="commentsContainer" class="comments-container">
+                        <!-- Комментарии будут добавлены сюда динамически -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="generatePlan()">Generate Plan</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal fade" id="planModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Plan</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="table-container">
+                        <pre id="planTable" class="plan-table"></pre>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" onclick="copyPlan()">Copy to clipboard</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="copyToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-body">
+                Скопировано в буфер обмена
+            </div>
+        </div>
+    </div>
+    <div class="container mt-5">
+        <h1 class="text-center mb-4">Александр навайбкодил</h1>
+        <div class="issues-list">
+            <div class="select-all-container">
+                <div class="issue-checkbox">
+                    <input type="checkbox" class="form-check-input" id="select-all" onchange="toggleAllCheckboxes(this)">
+                </div>
+                <div class="select-all-label">
+                    <label for="select-all">Выбрать все</label>
+                </div>
+            </div>
+            {{range .}}
+            <div class="issue-item">
+                <div class="issue-checkbox">
+                    <input type="checkbox" class="form-check-input issue-checkbox" 
+                           data-estimate="{{if .Estimate}}{{.Estimate.Value}}{{else}}0{{end}}"
+                           onchange="updateCounter(this)">
+                    {{if .Estimate}}
+                    <div class="estimate-value">
+                        <span class="badge bg-info">{{.Estimate.Value}}</span>
+                    </div>
+                    {{end}}
+                </div>
+                <div class="issue-content-wrapper">
+                    <div class="issue-header">
+                        <div class="issue-title">
+                            <h5>
+                                <a href="https://plane.it4retail.tech/it4retail/browse/{{.ProjectIdentifier}}-{{.SequenceID}}/" class="issue-id" target="_blank">
+                                    {{.ProjectIdentifier}}-{{.SequenceID}}
+                                </a>
+                                {{.Name}}
+                            </h5>
+                            <span class="badge bg-{{if eq .Priority "urgent"}}danger{{else if eq .Priority "high"}}warning{{else if eq .Priority "medium"}}info{{else}}secondary{{end}}">
+                                {{.Priority}}
+                            </span>
+                        </div>
+                        <div class="issue-meta">
+                            <span class="project">{{.Project}}</span>
+                        </div>
+                    </div>
+                    <div class="issue-content">
+                        <div class="description-container">
+                            <p class="description">{{.Description}}</p>
+                            <button class="btn btn-link btn-sm toggle-description" onclick="toggleDescription(this)">
+                                <span class="show-more">Show more</span>
+                                <span class="show-less" style="display: none">Show less</span>
+                            </button>
+                        </div>
+                        <div class="issue-details">
+                            <div class="time-info">
+                                <span class="text-muted">
+                                    Назначено: {{.AssignedAt.Format "02.01.2006 15:04"}} 
+                                    ({{$duration := timeSince .AssignedAt}}
+                                    {{if gt $duration.Days 0}}{{$duration.Days}} {{if eq $duration.Days 1}}день{{else}}дней{{end}}{{end}}
+                                    {{if and (gt $duration.Days 0) (gt $duration.Hours 0)}} и {{end}}
+                                    {{if gt $duration.Hours 0}}{{$duration.Hours}} {{if eq $duration.Hours 1}}час{{else}}часов{{end}}{{end}} назад)
+                                </span>
+                            </div>
+                            {{if .Point}}
+                            <div class="points">
+                                <span class="badge bg-primary">Points: {{.Point}}</span>
+                            </div>
+                            {{end}}
+                            <div class="status-badge">
+                                <span class="badge bg-{{if eq .State "In Progress"}}primary{{else if eq .State "Todo"}}warning{{else}}secondary{{end}}">
+                                    {{.State}}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {{end}}
+        </div>
+    </div>
+    <div class="modal fade" id="myPlanModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Мой план</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="myPlanContent" class="plan-content"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" onclick="generateFact()">Факт</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal fade" id="factModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Факт</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="factContent" class="plan-content"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" onclick="generateFact()">Сгенерировать таблицу</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal fade" id="factTableModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Факт</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="table-container">
+                        <pre id="factTable" class="plan-table"></pre>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                    <button type="button" class="btn btn-primary" onclick="copyFact()">Сохранить в буфер обмена</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function toggleDescription(button) {
+            const container = button.closest('.description-container');
+            const description = container.querySelector('.description');
+            const showMore = container.querySelector('.show-more');
+            const showLess = container.querySelector('.show-less');
+            
+            if (description.classList.contains('expanded')) {
+                description.classList.remove('expanded');
+                showMore.style.display = 'inline';
+                showLess.style.display = 'none';
+            } else {
+                description.classList.add('expanded');
+                showMore.style.display = 'none';
+                showLess.style.display = 'inline';
+            }
+        }
+
+        function updateCounter(checkbox) {
+            const counter = document.querySelector('.counter-value');
+            const counterWidget = document.querySelector('.floating-counter');
+            const estimate = parseFloat(checkbox.dataset.estimate) || 0;
+            let currentValue = parseFloat(counter.textContent);
+            
+            if (checkbox.checked) {
+                currentValue += estimate;
+            } else {
+                currentValue -= estimate;
+            }
+            
+            counter.textContent = currentValue.toFixed(1);
+            
+            // Показываем или скрываем виджет в зависимости от наличия выбранных задач
+            const checkedBoxes = document.querySelectorAll('.issue-checkbox input[type="checkbox"]:checked');
+            counterWidget.style.display = checkedBoxes.length > 0 ? 'block' : 'none';
+        }
+
+        function toggleAllCheckboxes(masterCheckbox) {
+            const checkboxes = document.querySelectorAll('.issue-checkbox input[type="checkbox"]');
+            const counter = document.querySelector('.counter-value');
+            const counterWidget = document.querySelector('.floating-counter');
+            let total = 0;
+            
+            checkboxes.forEach(checkbox => {
+                if (checkbox !== masterCheckbox) {
+                    checkbox.checked = masterCheckbox.checked;
+                    if (masterCheckbox.checked) {
+                        total += parseFloat(checkbox.dataset.estimate) || 0;
+                    }
+                }
+            });
+            
+            counter.textContent = total.toFixed(1);
+            counterWidget.style.display = masterCheckbox.checked ? 'block' : 'none';
+        }
+
+        function showCommentsModal() {
+            const checkboxes = document.querySelectorAll('.issue-checkbox input[type="checkbox"]:checked');
+            if (checkboxes.length === 0) {
+                alert('Please select at least one task');
+                return;
+            }
+
+            const container = document.getElementById('commentsContainer');
+            container.innerHTML = '';
+
+            checkboxes.forEach((checkbox, index) => {
+                const issueItem = checkbox.closest('.issue-item');
+                const id = issueItem.querySelector('.issue-id').textContent.trim();
+                const name = issueItem.querySelector('.issue-title h5').textContent.replace(id, '').trim();
+                
+                const commentGroup = document.createElement('div');
+                commentGroup.className = 'comment-group';
+                commentGroup.innerHTML = `
+                    <div class="comment-header">
+                        <h6>${id} - ${name}</h6>
+                    </div>
+                    <div class="comment-input">
+                        <textarea class="form-control" id="comment-${index}" rows="2" placeholder="Add comment..."></textarea>
+                    </div>
+                `;
+                container.appendChild(commentGroup);
+            });
+
+            const modal = new bootstrap.Modal(document.getElementById('commentsModal'));
+            modal.show();
+        }
+
+        function generatePlan() {
+            const checkboxes = document.querySelectorAll('.issue-checkbox input[type="checkbox"]:checked');
+            let totalEstimates = 0;
+            
+            // Сначала считаем общую сумму estimates
+            checkboxes.forEach(checkbox => {
+                totalEstimates += parseFloat(checkbox.dataset.estimate) || 0;
+            });
+
+            let table = `#План всего estimates = ${totalEstimates}\n\n`;
+            table += "| Estimate points| Проект | ID | Название задачи | Комментарий |\n";
+            table += "|---|---|---|---|---|\n";
+
+            checkboxes.forEach((checkbox, index) => {
+                const issueItem = checkbox.closest('.issue-item');
+                const id = issueItem.querySelector('.issue-id').textContent.trim();
+                const idLink = issueItem.querySelector('.issue-id').href;
+                const name = issueItem.querySelector('.issue-title h5').textContent.replace(id, '').trim();
+                const project = issueItem.querySelector('.project').textContent.trim();
+                const estimate = checkbox.dataset.estimate || '0';
+                const comment = document.getElementById(`comment-${index}`).value.trim();
+                
+                table += `| ${estimate} | ${project} | [${id}](${idLink}) | ${name} | ${comment} |\n`;
+            });
+
+            document.getElementById('planTable').textContent = table;
+            
+            // Автоматически сохраняем план
+            fetch('/save-plan', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `content=${encodeURIComponent(table)}`
+            })
+            .catch(error => {
+                console.error('Error saving plan:', error);
+            });
+            
+            // Закрываем модальное окно с комментариями
+            const commentsModal = bootstrap.Modal.getInstance(document.getElementById('commentsModal'));
+            commentsModal.hide();
+            
+            // Показываем модальное окно с таблицей
+            const planModal = new bootstrap.Modal(document.getElementById('planModal'));
+            planModal.show();
+        }
+
+        function copyPlan() {
+            const planTable = document.getElementById('planTable');
+            navigator.clipboard.writeText(planTable.textContent).then(() => {
+                // Показываем уведомление
+                const toast = new bootstrap.Toast(document.getElementById('copyToast'));
+                toast.show();
+                
+                // Закрываем модальное окно
+                const modal = bootstrap.Modal.getInstance(document.getElementById('planModal'));
+                modal.hide();
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
+            });
+        }
+
+        function createIssueItem(issue) {
+            const item = document.createElement('div');
+            item.className = 'issue-item';
+            item.innerHTML = `
+                <div class="issue-checkbox">
+                    <input type="checkbox" data-estimate="${issue.Estimate?.Value || '0'}">
+                    <div class="estimate-value">${issue.Estimate?.Value || '0'}</div>
+                </div>
+                <div class="issue-content">
+                    <div class="issue-title">
+                        <h5>
+                            <a href="https://plane.it4retail.tech/it4retail/browse/${issue.ID}" class="issue-id">${issue.ID}</a>
+                            ${issue.Name}
+                        </h5>
+                    </div>
+                    <div class="issue-meta">
+                        <span class="project">${issue.Project}</span>
+                        <span class="state">${issue.State}</span>
+                        <span class="assignee">${issue.Assignee}</span>
+                        <span class="time">${issue.TimeSince.Days}d ${issue.TimeSince.Hours}h</span>
+                    </div>
+                </div>
+            `;
+            return item;
+        }
+
+        function showMyPlan() {
+            fetch('/get-plan')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.content) {
+                        document.getElementById('myPlanContent').innerHTML = formatPlanContent(data.content);
+                        const modal = new bootstrap.Modal(document.getElementById('myPlanModal'));
+                        modal.show();
+                    } else {
+                        alert('План не найден');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Ошибка при загрузке плана');
+                });
+        }
+
+        function formatPlanContent(content) {
+            // Разбиваем контент на строки
+            const lines = content.split('\n');
+            let html = '';
+            
+            // Пропускаем первые три строки (заголовок с total estimates и заголовок таблицы)
+            for (let i = 3; i < lines.length; i++) {
+                // Пропускаем строки с разделителями таблицы
+                if (lines[i].startsWith('|') && !lines[i].includes('---')) {
+                    // Это строка таблицы
+                    const cells = lines[i].split('|').filter(cell => cell.trim() !== '');
+                    if (cells.length >= 5) {
+                        // Извлекаем ID и ссылку из markdown формата
+                        const idMatch = cells[2].trim().match(/\[(.*?)\]\((.*?)\)/);
+                        const id = idMatch ? idMatch[1] : cells[2].trim();
+                        const idLink = idMatch ? idMatch[2] : '';
+                        
+                        html += `
+                            <div class="plan-task" data-id="${id}" data-link="${idLink}">
+                                <div class="task-header">
+                                    <a href="${idLink}" class="task-id" target="_blank">${id}</a>
+                                    <span class="task-estimate">${cells[0].trim()} points</span>
+                                </div>
+                                <div class="task-project">${cells[1].trim()}</div>
+                                <div class="task-name">${cells[3].trim()}</div>
+                                <div class="task-comment">
+                                    <textarea class="form-control fact-comment" rows="2" placeholder="Добавьте комментарий о выполнении...">${cells[4].trim()}</textarea>
+                                </div>
+                            </div>
+                        `;
+                    }
+                }
+            }
+            
+            return html;
+        }
+
+        function showFactModal() {
+            // Получаем сохраненный план
+            fetch('/get-plan')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.content) {
+                        // Получаем новые задачи
+                        fetch('/get-new-tasks')
+                            .then(response => response.json())
+                            .then(newTasks => {
+                                document.getElementById('factContent').innerHTML = formatFactContent(data.content, newTasks);
+                                const modal = new bootstrap.Modal(document.getElementById('factModal'));
+                                modal.show();
+                            })
+                            .catch(error => {
+                                console.error('Error:', error);
+                                alert('Ошибка при загрузке новых задач');
+                            });
+                    } else {
+                        alert('План не найден');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Ошибка при загрузке плана');
+                });
+        }
+
+        function formatFactContent(planContent, newTasks) {
+            // Разбиваем контент плана на строки
+            const lines = planContent.split('\n');
+            let html = '';
+            
+            // Обрабатываем задачи из плана
+            for (let i = 3; i < lines.length; i++) {
+                if (lines[i].startsWith('|') && !lines[i].includes('---')) {
+                    const cells = lines[i].split('|').filter(cell => cell.trim() !== '');
+                    if (cells.length >= 5) {
+                        const idMatch = cells[2].trim().match(/\[(.*?)\]\((.*?)\)/);
+                        const id = idMatch ? idMatch[1] : cells[2].trim();
+                        const idLink = idMatch ? idMatch[2] : '';
+                        
+                        html += `
+                            <div class="plan-task" data-id="${id}" data-link="${idLink}">
+                                <div class="task-header">
+                                    <a href="${idLink}" class="task-id" target="_blank">${id}</a>
+                                    <span class="task-estimate">${cells[0].trim()} points</span>
+                                </div>
+                                <div class="task-project">${cells[1].trim()}</div>
+                                <div class="task-name">${cells[3].trim()}</div>
+                                <div class="task-comment">
+                                    <textarea class="form-control fact-comment" rows="2" placeholder="Добавьте комментарий о выполнении...">${cells[4].trim()}</textarea>
+                                </div>
+                            </div>
+                        `;
+                    }
+                }
+            }
+
+            // Добавляем новые задачи
+            if (newTasks && newTasks.length > 0) {
+                html += '<div class="new-tasks-divider">Новые задачи</div>';
+                newTasks.forEach(task => {
+                    const taskId = `${task.project_identifier}-${task.sequence_id}`;
+                    html += `
+                        <div class="plan-task" data-id="${taskId}" data-link="${task.link}">
+                            <div class="task-header">
+                                <a href="${task.link}" class="task-id" target="_blank">${taskId}</a>
+                                <span class="task-estimate">${task.estimate || '0'} points</span>
+                            </div>
+                            <div class="task-project">${task.project}</div>
+                            <div class="task-name">${task.name}</div>
+                            <div class="task-comment">
+                                <textarea class="form-control fact-comment" rows="2" placeholder="Добавьте комментарий о выполнении..."></textarea>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+            
+            return html;
+        }
+
+        function generateFact() {
+            const tasks = document.querySelectorAll('.plan-task');
+            let totalEstimates = 0;
+            
+            // Считаем общую сумму estimates
+            tasks.forEach(task => {
+                const estimate = parseFloat(task.querySelector('.task-estimate').textContent) || 0;
+                totalEstimates += estimate;
+            });
+
+            let table = `#Факт всего estimates = ${totalEstimates}\n\n`;
+            table += "| Estimate points| Проект | ID | Название задачи | Факт |\n";
+            table += "|---|---|---|---|---|\n";
+
+            tasks.forEach(task => {
+                const id = task.dataset.id;
+                const idLink = task.dataset.link;
+                const project = task.querySelector('.task-project').textContent.trim();
+                const name = task.querySelector('.task-name').textContent.trim();
+                const estimate = task.querySelector('.task-estimate').textContent.trim().replace(' points', '');
+                const fact = task.querySelector('.fact-comment').value.trim();
+                
+                table += `| ${estimate} | ${project} | [${id}](${idLink}) | ${name} | ${fact} |\n`;
+            });
+
+            // Показываем модальное окно с таблицей
+            document.getElementById('factTable').textContent = table;
+            const factTableModal = new bootstrap.Modal(document.getElementById('factTableModal'));
+            factTableModal.show();
+        }
+
+        function copyFact() {
+            const factTable = document.getElementById('factTable');
+            navigator.clipboard.writeText(factTable.textContent).then(() => {
+                // Показываем уведомление
+                const toast = new bootstrap.Toast(document.getElementById('copyToast'));
+                toast.show();
+                
+                // Закрываем модальные окна
+                const factTableModal = bootstrap.Modal.getInstance(document.getElementById('factTableModal'));
+                factTableModal.hide();
+                const factModal = bootstrap.Modal.getInstance(document.getElementById('factModal'));
+                factModal.hide();
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
+            });
+        }
+    </script>
+</body>
+</html> 
