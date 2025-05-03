@@ -15,15 +15,15 @@ services:
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
-      - "traefik.docker.network=web"
+      - "traefik.docker.network=traefik-net"
       - "traefik.http.routers.planfact.rule=Host(`planfact.astralswag.ru`)"
-      - "traefik.http.routers.planfact.entrypoints=https"
-      - "traefik.http.routers.planfact.tls.certResolver=acme"
+      - "traefik.http.routers.planfact.entrypoints=websecure"
+      - "traefik.http.routers.planfact.tls=true"
       - "traefik.http.services.planfact.loadbalancer.server.port=8080"
       # Basic Auth middleware
-      - "traefik.http.routers.planfact.middlewares=auth"
-      - "traefik.http.middlewares.auth.basicauth.users=${HTTP_BASIC_AUTH}"
-      - "traefik.http.middlewares.auth.basicauth.removeheader=true"
+      - "traefik.http.routers.planfact.middlewares=planfact-auth"
+      - "traefik.http.middlewares.planfact-auth.basicauth.users=${HTTP_BASIC_AUTH}"
+      - "traefik.http.middlewares.planfact-auth.basicauth.removeheader=true"
     networks:
       - traefik-net
 
