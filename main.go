@@ -117,7 +117,10 @@ func getIssues() ([]Issue, error) {
 				e.name as estimate_name,
 				e.description as estimate_description,
 				e.type as estimate_type,
-				ep.value as estimate_value,
+				CASE 
+					WHEN ep.value = '0' THEN '0.5'
+					ELSE ep.value 
+				END as estimate_value,
 				CASE i.priority
 					WHEN 'urgent' THEN 1
 					WHEN 'high' THEN 2
@@ -362,7 +365,10 @@ func main() {
 				p.name as project,
 				p.identifier as project_identifier,
 				i.sequence_id,
-				ep.value as estimate_value
+				CASE 
+					WHEN ep.value = '0' THEN '0.5'
+					ELSE ep.value 
+				END as estimate_value
 			FROM issues i
 			LEFT JOIN states s ON i.state_id = s.id
 			LEFT JOIN projects p ON i.project_id = p.id
@@ -372,7 +378,6 @@ func main() {
 			WHERE i.deleted_at IS NULL
 			AND ia.deleted_at IS NULL
 			AND ia.assignee_id = '7639588f-d211-4cdc-a57d-697111edaf49'
-			AND s.name IN ('Backlog', 'Todo', 'In Progress')
 			AND i.created_at > $1
 		`
 
