@@ -118,8 +118,8 @@ func getIssues() ([]Issue, error) {
 				e.description as estimate_description,
 				e.type as estimate_type,
 				CASE 
-					WHEN ep.value = '0' THEN '0.5'
-					ELSE ep.value 
+					WHEN TRIM(ep.value) = '0' OR ep.value IS NULL THEN '0.5'
+					ELSE TRIM(ep.value)
 				END as estimate_value,
 				CASE i.priority
 					WHEN 'urgent' THEN 1
@@ -366,8 +366,8 @@ func main() {
 				p.identifier as project_identifier,
 				i.sequence_id,
 				CASE 
-					WHEN ep.value = '0' THEN '0.5'
-					ELSE ep.value 
+					WHEN TRIM(ep.value) = '0' OR ep.value IS NULL THEN '0.5'
+					ELSE TRIM(ep.value)
 				END as estimate_value
 			FROM issues i
 			LEFT JOIN states s ON i.state_id = s.id
