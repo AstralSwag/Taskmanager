@@ -33,7 +33,7 @@ host    replication    replicator      0.0.0.0/0              md5
 EOF
 
 # Создаем скрипт для подписки на публикацию
-cat > /tmp/subscribe.sh <<EOF
+cat > /var/lib/postgresql/subscribe.sh <<EOF
 #!/bin/bash
 set -e
 
@@ -58,8 +58,9 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-E
 EOSQL
 EOF
 
-# Устанавливаем правильные права доступа и перемещаем файл
-chmod 777 /tmp/subscribe.sh
-chown postgres:postgres /docker-entrypoint-initdb.d
-mv /tmp/subscribe.sh /docker-entrypoint-initdb.d/subscribe.sh
-chown postgres:postgres /docker-entrypoint-initdb.d/subscribe.sh
+# Устанавливаем правильные права доступа
+chmod 755 /var/lib/postgresql/subscribe.sh
+chown postgres:postgres /var/lib/postgresql/subscribe.sh
+
+# Запускаем скрипт подписки
+su postgres -c "/var/lib/postgresql/subscribe.sh"
