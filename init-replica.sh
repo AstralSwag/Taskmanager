@@ -59,7 +59,5 @@ EOSQL
 EOF
 
 # Устанавливаем правильные права доступа и перемещаем файл
-chmod 755 /tmp/subscribe.sh
+chmod 777 /tmp/subscribe.sh
 mv /tmp/subscribe.sh /docker-entrypoint-initdb.d/subscribe.sh
-chown postgres:postgres /docker-entrypoint-initdb.d/subscribe.sh
-chown replicator:replicator /docker-entrypoint-initdb.d/subscribe.sh
