@@ -1,9 +1,16 @@
 #!/bin/bash
 set -e
 
-# Создаем пользователя для репликации
+# Создаем пользователя для репликации, если его нет
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
-    CREATE USER replicator WITH REPLICATION ENCRYPTED PASSWORD '${DB_PASSWORD}';
+    DO
+    \$do\$
+    BEGIN
+        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'replicator') THEN
+            CREATE USER replicator WITH REPLICATION ENCRYPTED PASSWORD '${DB_PASSWORD}';
+        END IF;
+    END
+    \$do\$;
 EOSQL
 
 # Настраиваем параметры репликации
@@ -30,11 +37,18 @@ until pg_isready -h ${DB_HOST} -p ${DB_PORT} -U replicator; do
     sleep 2
 done
 
-# Создаем подписку
+# Создаем подписку, если её нет
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
-    CREATE SUBSCRIPTION site_sub 
-    CONNECTION 'host=${DB_HOST} port=${DB_PORT} user=replicator password=${DB_PASSWORD} dbname=${DB_NAME}' 
-    PUBLICATION site_pub;
+    DO
+    \$do\$
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_subscription WHERE subname = 'site_sub') THEN
+            CREATE SUBSCRIPTION site_sub 
+            CONNECTION 'host=${DB_HOST} port=${DB_PORT} user=replicator password=${DB_PASSWORD} dbname=${DB_NAME}' 
+            PUBLICATION site_pub;
+        END IF;
+    END
+    \$do\$;
 EOSQL
 EOF
 
