@@ -38,12 +38,13 @@ services:
       - POSTGRES_DB=${DB_NAME}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init-replica.sh:/docker-entrypoint-initdb.d/init-replica.sh
-      - ./init-tables.sh:/docker-entrypoint-initdb.d/init-tables.sh
+      - ./init-replica.sh:/docker-entrypoint-initdb.d/init-replica.sh:ro
+      - ./init-tables.sh:/docker-entrypoint-initdb.d/init-tables.sh:ro
     ports:
       - "5432:5432"
     restart: unless-stopped
     command: ["postgres", "-c", "max_connections=1000"]
+    user: postgres
     networks:
       - app-network
 
