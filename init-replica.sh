@@ -60,4 +60,6 @@ EOF
 
 # Устанавливаем правильные права доступа и перемещаем файл
 chmod 777 /tmp/subscribe.sh
+chown postgres:postgres /docker-entrypoint-initdb.d
 mv /tmp/subscribe.sh /docker-entrypoint-initdb.d/subscribe.sh
+chown postgres:postgres /docker-entrypoint-initdb.d/subscribe.sh
