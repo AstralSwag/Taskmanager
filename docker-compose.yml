@@ -2,16 +2,18 @@ services:
   app:
     build: .
     environment:
-      - DB_HOST=${DB_HOST}
-      - DB_PORT=${DB_PORT}
+      - DB_HOST=postgres
+      - DB_PORT=5432
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=${DB_NAME}
-      - DB_SSLMODE=${DB_SSLMODE}
+      - DB_SSLMODE=disable
     volumes:
       - ./static:/app/static
       - ./templates:/app/templates
       - ./data:/app/data
+    depends_on:
+      - postgres
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
@@ -26,7 +28,29 @@ services:
       - "traefik.http.middlewares.planfact-auth.basicauth.removeheader=true"
     networks:
       - traefik-net
+      - app-network
+
+  postgres:
+    image: postgres:15
+    environment:
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-replica.sh:/docker-entrypoint-initdb.d/init-replica.sh
+      - ./init-tables.sh:/docker-entrypoint-initdb.d/init-tables.sh
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    networks:
+      - app-network
+
+volumes:
+  postgres_data:
 
 networks:
   traefik-net:
     external: true
+  app-network:
+    driver: bridge
