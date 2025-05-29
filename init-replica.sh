@@ -37,20 +37,33 @@ cat > /var/lib/postgresql/subscribe.sh <<EOF
 #!/bin/bash
 set -e
 
+# Проверяем и устанавливаем значения по умолчанию для переменных окружения
+DB_HOST=\${DB_HOST:-"postgres"}
+DB_PORT=\${DB_PORT:-"5432"}
+DB_PASSWORD=\${DB_PASSWORD:-"replicator"}
+DB_NAME=\${DB_NAME:-"replicator"}
+POSTGRES_USER=\${POSTGRES_USER:-"replicator"}
+
+echo "Using connection parameters:"
+echo "Host: \$DB_HOST"
+echo "Port: \$DB_PORT"
+echo "Database: \$DB_NAME"
+echo "User: \$POSTGRES_USER"
+
 # Ждем, пока база данных будет готова
-until pg_isready -h ${DB_HOST} -p ${DB_PORT} -U replicator; do
-    echo "Waiting for primary database..."
+until pg_isready -h "\$DB_HOST" -p "\$DB_PORT" -U "\$POSTGRES_USER"; do
+    echo "Waiting for primary database at \$DB_HOST:\$DB_PORT..."
     sleep 2
 done
 
 # Создаем подписку, если её нет
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+psql -v ON_ERROR_STOP=1 --username "\$POSTGRES_USER" --dbname "\$DB_NAME" <<-EOSQL
     DO
     \$do\$
     BEGIN
         IF NOT EXISTS (SELECT 1 FROM pg_subscription WHERE subname = 'site_sub') THEN
             CREATE SUBSCRIPTION site_sub 
-            CONNECTION 'host=${DB_HOST} port=${DB_PORT} user=replicator password=${DB_PASSWORD} dbname=${DB_NAME}' 
+            CONNECTION 'host=\$DB_HOST port=\$DB_PORT user=\$POSTGRES_USER password=\$DB_PASSWORD dbname=\$DB_NAME' 
             PUBLICATION site_pub;
         END IF;
     END
