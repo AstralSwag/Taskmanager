@@ -32,7 +32,7 @@ services:
 
   postgres:
     image: postgres:15
-      environment:
+    environment:
       POSTGRES_USER: ${REPLICATOR_USER}
       POSTGRES_PASSWORD: ${REPLICATOR_PASSWORD}
       POSTGRES_DB: ${REPLICATOR_DB}
