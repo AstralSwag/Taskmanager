@@ -33,30 +33,21 @@ services:
   postgres:
     image: postgres:15
     environment:
-      - POSTGRES_USER=${REPLICATOR_USER}
-      - POSTGRES_PASSWORD=${REPLICATOR_PASSWORD}
-      - POSTGRES_DB=replicator
-      - PLANE_HOST=${PLANE_HOST}
-      - PLANE_PORT=${PLANE_PORT}
-      - REPLICA_PORT=${REPLICA_PORT}
-      - REPLICATOR_USER=${REPLICATOR_USER}
-      - REPLICATOR_PASSWORD=${REPLICATOR_PASSWORD}
+      POSTGRES_USER: ${REPLICATOR_USER}
+      POSTGRES_PASSWORD: ${REPLICATOR_PASSWORD}
+      POSTGRES_DB: plane
+      PLANE_HOST: ${PLANE_HOST}
+      PLANE_PORT: ${PLANE_PORT}    
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./init-replica.sh:/docker-entrypoint-initdb.d/00-init-replica.sh:ro
-      - ./init-tables.sh:/docker-entrypoint-initdb.d/01-init-tables.sh:ro
-      - ./subscribe.sh:/docker-entrypoint-initdb.d/02-subscribe.sh:ro
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    command: postgres -c wal_level=logical
+    restart: unless-stopped
     ports:
       - "${REPLICA_PORT}:5432"
     restart: unless-stopped
-    command: ["postgres", "-c", "max_connections=1000"]
     user: postgres
     networks:
       - app-network
-
-volumes:
-  postgres_data:
-    driver: local
 
 networks:
   traefik-net:
