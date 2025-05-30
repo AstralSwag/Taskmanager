@@ -33,40 +33,19 @@ host    replication    replicator      0.0.0.0/0              md5
 EOF
 
 # Создаем скрипт для подписки на публикацию
-cat > /var/lib/postgresql/subscribe.sh <<EOF
+cat > /var/lib/postgresql/subscribe.sh <<'EOF'
 #!/bin/bash
 set -e
 
-# Проверяем переменные окружения
-DB_HOST=${DB_HOST:-"postgres"}
-DB_PORT=${DB_PORT:-"5432"}
-DB_PASSWORD=${DB_PASSWORD:-"replicator"}
-DB_NAME=${DB_NAME:-"replicator"}
-POSTGRES_USER=${POSTGRES_USER:-"replicator"}
-
-echo "Using connection parameters:"
-echo "Host: $DB_HOST"
-echo "Port: $DB_PORT"
-echo "Database: $DB_NAME"
-echo "User: $POSTGRES_USER"
-
-# Ждем готовности БД
+# Проверка доступности БД
 until PGPASSWORD="$DB_PASSWORD" pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$POSTGRES_USER"; do
     echo "Waiting for primary database at $DB_HOST:$DB_PORT..."
     sleep 2
 done
 
-# Создаем подписку
-PGPASSWORD="$DB_PASSWORD" psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$DB_NAME" <<-'EOSQL'
-    DO $$
-    BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_subscription WHERE subname = 'site_sub') THEN
-            CREATE SUBSCRIPTION site_sub 
-            CONNECTION 'host=$$DB_HOST$$ port=$$DB_PORT$$ user=$$POSTGRES_USER$$ password=$$DB_PASSWORD$$ dbname=$$DB_NAME$$'
-            PUBLICATION site_pub;
-        END IF;
-    END $$;
-EOSQL
+# Создание подписки без вложенного heredoc
+PGPASSWORD="$DB_PASSWORD" psql -v ON_ERROR_STOP=1 -h "$DB_HOST" -p "$DB_PORT" -U "$POSTGRES_USER" -d "$DB_NAME" \
+  -c "CREATE SUBSCRIPTION IF NOT EXISTS site_sub CONNECTION 'host=$DB_HOST port=$DB_PORT user=$POSTGRES_USER password=$DB_PASSWORD dbname=$DB_NAME' PUBLICATION site_pub;"
 EOF
 
 # Устанавливаем правильные права доступа
