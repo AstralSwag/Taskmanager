@@ -49,4 +49,4 @@ PGPASSWORD="$DB_PASSWORD" psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --
         deleted_at TIMESTAMP WITH TIME ZONE,
         PRIMARY KEY (issue_id, assignee_id)
     );
-EOSQL 
+EOSQL
