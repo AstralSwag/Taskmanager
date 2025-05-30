@@ -29,7 +29,7 @@ until pg_isready; do
 done
 
 # Создаем пользователя для репликации
-PGPASSWORD="${POSTGRES_PASSWORD}" psql -v ON_ERROR_STOP=1 -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" <<-EOSQL
+su postgres -c "psql -v ON_ERROR_STOP=1 <<-EOSQL
     DO
     \$do\$
     BEGIN
@@ -38,7 +38,7 @@ PGPASSWORD="${POSTGRES_PASSWORD}" psql -v ON_ERROR_STOP=1 -U "${POSTGRES_USER}" 
         END IF;
     END
     \$do\$;
-EOSQL
+EOSQL"
 
 # Создаем скрипт для подписки на публикацию
 cat > /var/lib/postgresql/subscribe.sh <<'EOF'
