@@ -497,13 +497,16 @@
                 }
                 
                 if (line.startsWith('|')) {
-                    const cells = line.split('|').map(cell => cell.trim()).filter(cell => cell !== '');
+                    // Разбиваем строку на ячейки, сохраняя пустые ячейки
+                    const cells = line.split('|').map(cell => cell.trim());
                     console.log('Processing cells:', cells);
-                    if (cells.length >= 5) {
-                        const idMatch = cells[2].match(/\[(.*?)\]\((.*?)\)/);
-                        const id = idMatch ? idMatch[1] : cells[2];
+                    
+                    // Проверяем, что у нас есть все необходимые ячейки
+                    if (cells.length >= 6) { // 6 потому что split('|') создает массив с пустыми элементами в начале и конце
+                        const idMatch = cells[3].match(/\[(.*?)\]\((.*?)\)/);
+                        const id = idMatch ? idMatch[1] : cells[3];
                         const idLink = idMatch ? idMatch[2] : '';
-                        const estimate = cells[0];
+                        const estimate = cells[1];
                         
                         html += `
                             <div class="plan-task" data-id="${id}" data-link="${idLink}">
@@ -511,10 +514,10 @@
                                     <a href="${idLink}" class="task-id" target="_blank">${id}</a>
                                     <span class="task-estimate">${estimate} points</span>
                                 </div>
-                                <div class="task-project">${cells[1]}</div>
-                                <div class="task-name">${cells[3]}</div>
+                                <div class="task-project">${cells[2]}</div>
+                                <div class="task-name">${cells[4]}</div>
                                 <div class="task-comment">
-                                    <textarea class="form-control fact-comment" rows="2" placeholder="Добавьте комментарий о выполнении...">${cells[4]}</textarea>
+                                    <textarea class="form-control fact-comment" rows="2" placeholder="Добавьте комментарий о выполнении...">${cells[5] || ''}</textarea>
                                 </div>
                             </div>
                         `;
