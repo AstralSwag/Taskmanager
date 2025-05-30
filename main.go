@@ -265,7 +265,7 @@ func main() {
 	initDB()
 	defer db.Close()
 
-	// Создаем директорию для данных, если её нет
+	// Создаем директорию для данных если её нет
 	if err := os.MkdirAll("data", 0755); err != nil {
 		log.Fatal("Failed to create data directory:", err)
 	}
