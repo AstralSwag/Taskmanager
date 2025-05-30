@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-PGPASSWORD="$DB_PASSWORD" psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<EOSQL
+PGPASSWORD="$DB_PASSWORD" psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<'EOSQL'
     -- Создаем таблицу states
     CREATE TABLE IF NOT EXISTS states (
         id UUID PRIMARY KEY,
