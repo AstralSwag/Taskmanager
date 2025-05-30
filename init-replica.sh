@@ -1,18 +1,6 @@
 #!/bin/bash
 set -e
 
-# Создаем пользователя для репликации, если его нет
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
-    DO
-    \$do\$
-    BEGIN
-        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'replicator') THEN
-            CREATE USER replicator WITH REPLICATION ENCRYPTED PASSWORD '${DB_PASSWORD}';
-        END IF;
-    END
-    \$do\$;
-EOSQL
-
 # Настраиваем параметры репликации
 cat >> /var/lib/postgresql/data/postgresql.conf <<EOF
 wal_level = replica
@@ -29,8 +17,20 @@ local   all            all                                     md5
 host    all            all             127.0.0.1/32           md5
 host    all            all             ::1/128                 md5
 host    all            all             0.0.0.0/0              md5
-host    replicator    replicator       0.0.0.0/0              md5
+host    replication    ${REPLICATOR_USER}    0.0.0.0/0        md5
 EOF
+
+# Создаем пользователя для репликации
+psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
+    DO
+    \$do\$
+    BEGIN
+        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '${REPLICATOR_USER}') THEN
+            CREATE USER ${REPLICATOR_USER} WITH REPLICATION ENCRYPTED PASSWORD '${REPLICATOR_PASSWORD}';
+        END IF;
+    END
+    \$do\$;
+EOSQL
 
 # Создаем скрипт для подписки на публикацию
 cat > /var/lib/postgresql/subscribe.sh <<'EOF'

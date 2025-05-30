@@ -33,21 +33,21 @@ services:
   postgres:
     image: postgres:15
     environment:
-      - DB_HOST=${DB_HOST}
-      - DB_PORT=55432
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_NAME=${DB_NAME}
-      - POSTGRES_USER=${DB_USER}
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
-      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${REPLICATOR_USER}
+      - POSTGRES_PASSWORD=${REPLICATOR_PASSWORD}
+      - POSTGRES_DB=replicator
+      - PLANE_HOST=${PLANE_HOST}
+      - PLANE_PORT=${PLANE_PORT}
+      - REPLICA_PORT=${REPLICA_PORT}
+      - REPLICATOR_USER=${REPLICATOR_USER}
+      - REPLICATOR_PASSWORD=${REPLICATOR_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-replica.sh:/docker-entrypoint-initdb.d/00-init-replica.sh:ro
       - ./init-tables.sh:/docker-entrypoint-initdb.d/01-init-tables.sh:ro
       - ./subscribe.sh:/docker-entrypoint-initdb.d/02-subscribe.sh:ro
     ports:
-      - "5432:5432"
+      - "${REPLICA_PORT}:5432"
     restart: unless-stopped
     command: ["postgres", "-c", "max_connections=1000"]
     user: postgres
