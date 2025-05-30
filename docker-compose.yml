@@ -33,6 +33,7 @@ services:
   postgres:
     image: postgres:15
     environment:
+      - DB_HOST=${DB_HOST}
       - DB_PORT=55432
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}

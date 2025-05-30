@@ -51,13 +51,13 @@ echo "Database: \$DB_NAME"
 echo "User: \$POSTGRES_USER"
 
 # Ждем, пока база данных будет готова
-until PGPASSWORD=\$DB_PASSWORD pg_isready -h "\$DB_HOST" -p "\$DB_LOCAL_PORT" -U "\$POSTGRES_USER"; do
+until PGPASSWORD=\$DB_PASSWORD pg_isready -h localhost -p "\$DB_LOCAL_PORT" -U "\$POSTGRES_USER"; do
     echo "Waiting for primary database at \$DB_HOST:\$DB_PORT..."
     sleep 2
 done
 
 # Создаем подписку, если её нет
-psql -v ON_ERROR_STOP=1 --username "\$POSTGRES_USER" --dbname "\$DB_NAME" <<-EOSQL
+PGPASSWORD="\$DB_PASSWORD"  psql -v ON_ERROR_STOP=1 --username "\$POSTGRES_USER" --dbname "\$DB_NAME" <<-EOSQL
     DO
     \$do\$
     BEGIN
