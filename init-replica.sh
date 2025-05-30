@@ -29,7 +29,7 @@ local   all            all                                     md5
 host    all            all             127.0.0.1/32           md5
 host    all            all             ::1/128                 md5
 host    all            all             0.0.0.0/0              md5
-host    replication    replicator      0.0.0.0/0              md5
+host    replicator    replicator       0.0.0.0/0              md5
 EOF
 
 # Создаем скрипт для подписки на публикацию
@@ -43,9 +43,14 @@ until pg_isready; do
     sleep 2
 done
 
-# Создание подписки без вложенного heredoc
-PGPASSWORD="$DB_PASSWORD" psql -v ON_ERROR_STOP=1 -h "$DB_HOST" -p "$DB_PORT" -U "$POSTGRES_USER" -d "plane" \
-  -c "CREATE SUBSCRIPTION IF NOT EXISTS site_sub CONNECTION 'host=$DB_HOST port=$DB_PORT user=$POSTGRES_USER password=$DB_PASSWORD dbname=plane' PUBLICATION site_pub;"
+# Формирование строки подключения
+CONN_STR="host=${DB_HOST} port=${DB_PORT} user=${POSTGRES_USER} password=${DB_PASSWORD} dbname=plane"
+
+# Создание подписки
+psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d plane <<EOF
+CREATE SUBSCRIPTION IF NOT EXISTS site_sub
+CONNECTION '${CONN_STR}'
+PUBLICATION site_pub;
 EOF
 
 # Устанавливаем правильные права доступа
