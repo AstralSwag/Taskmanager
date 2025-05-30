@@ -44,7 +44,6 @@ services:
     restart: unless-stopped
     ports:
       - "${REPLICA_PORT}:5432"
-    restart: unless-stopped
     user: postgres
     networks:
       - app-network
