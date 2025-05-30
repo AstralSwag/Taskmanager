@@ -292,6 +292,11 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func loadUsers() error {
+	// Проверяем существование файла
+	if _, err := os.Stat("users.json"); os.IsNotExist(err) {
+		return fmt.Errorf("users.json file not found: %v", err)
+	}
+
 	file, err := os.ReadFile("users.json")
 	if err != nil {
 		return fmt.Errorf("error reading users.json: %v", err)
@@ -303,12 +308,17 @@ func loadUsers() error {
 		return fmt.Errorf("error parsing users.json: %v", err)
 	}
 
+	if len(users) == 0 {
+		return fmt.Errorf("no users found in users.json")
+	}
+
 	// Устанавливаем первого пользователя как текущего по умолчанию
 	for id := range users {
 		currentUserID = id
 		break
 	}
 
+	log.Printf("Loaded %d users from users.json", len(users))
 	return nil
 }
 

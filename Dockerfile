@@ -30,6 +30,7 @@ RUN apk --no-cache add ca-certificates sqlite
 COPY --from=builder /app/main .
 COPY --from=builder /app/static ./static
 COPY --from=builder /app/templates ./templates
+COPY --from=builder /app/users.json ./users.json
 
 EXPOSE 8080
 
