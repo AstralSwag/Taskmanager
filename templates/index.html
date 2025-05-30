@@ -435,24 +435,28 @@
             fetch('/get-plan')
                 .then(response => response.json())
                 .then(data => {
-                    console.log('Received plan data:', data); // Добавляем для отладки
-                    if (data.content) {
-                        // Получаем новые задачи
-                        fetch('/get-new-tasks')
-                            .then(response => response.json())
-                            .then(newTasks => {
-                                console.log('Received new tasks:', newTasks); // Добавляем для отладки
-                                document.getElementById('factContent').innerHTML = formatFactContent(data.content, newTasks);
-                                const modal = new bootstrap.Modal(document.getElementById('factModal'));
-                                modal.show();
-                            })
-                            .catch(error => {
-                                console.error('Error loading new tasks:', error);
-                                alert('Ошибка при загрузке новых задач');
-                            });
-                    } else {
-                        alert('План не найден');
+                    console.log('Received plan data:', data);
+                    if (!data || !data.content) {
+                        console.error('Invalid plan data received:', data);
+                        alert('План не найден или имеет неверный формат');
+                        return;
                     }
+
+                    // Получаем новые задачи
+                    fetch('/get-new-tasks')
+                        .then(response => response.json())
+                        .then(newTasks => {
+                            console.log('Received new tasks:', newTasks);
+                            const formattedContent = formatFactContent(data.content, newTasks);
+                            console.log('Formatted content:', formattedContent);
+                            document.getElementById('factContent').innerHTML = formattedContent;
+                            const modal = new bootstrap.Modal(document.getElementById('factModal'));
+                            modal.show();
+                        })
+                        .catch(error => {
+                            console.error('Error loading new tasks:', error);
+                            alert('Ошибка при загрузке новых задач');
+                        });
                 })
                 .catch(error => {
                     console.error('Error loading plan:', error);
@@ -462,6 +466,11 @@
 
         function formatFactContent(planContent, newTasks) {
             console.log('Formatting content:', planContent);
+            if (!planContent) {
+                console.error('Empty plan content');
+                return '';
+            }
+
             // Разбиваем контент плана на строки
             const lines = planContent.split('\n');
             let html = '';
@@ -470,22 +479,26 @@
             // Обрабатываем задачи из плана
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i].trim();
+                console.log('Processing line:', line);
                 
                 // Пропускаем строки до начала таблицы
                 if (!foundTableStart) {
                     if (line.startsWith('|') && line.includes('Estimate points')) {
                         foundTableStart = true;
+                        console.log('Found table start');
                     }
                     continue;
                 }
                 
                 // Пропускаем строку с разделителями таблицы
                 if (line.includes('---')) {
+                    console.log('Skipping separator line');
                     continue;
                 }
                 
                 if (line.startsWith('|')) {
                     const cells = line.split('|').map(cell => cell.trim()).filter(cell => cell !== '');
+                    console.log('Processing cells:', cells);
                     if (cells.length >= 5) {
                         const idMatch = cells[2].match(/\[(.*?)\]\((.*?)\)/);
                         const id = idMatch ? idMatch[1] : cells[2];
@@ -505,6 +518,7 @@
                                 </div>
                             </div>
                         `;
+                        console.log('Added task to HTML:', id);
                     }
                 }
             }

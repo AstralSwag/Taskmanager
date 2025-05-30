@@ -352,6 +352,9 @@ func main() {
 			return
 		}
 
+		// Добавляем логирование
+		log.Printf("Raw plan content from DB: %s", content)
+
 		// Создаем структуру для JSON
 		type PlanResponse struct {
 			Content string `json:"content"`
@@ -360,11 +363,14 @@ func main() {
 
 		// Отправляем JSON
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(response); err != nil {
-			log.Printf("Error encoding JSON: %v", err)
+		jsonData, err := json.Marshal(response)
+		if err != nil {
+			log.Printf("Error marshaling JSON: %v", err)
 			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 			return
 		}
+		log.Printf("Sending JSON response: %s", string(jsonData))
+		w.Write(jsonData)
 	})
 
 	// Добавляем обработчик для получения новых задач
