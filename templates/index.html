@@ -435,23 +435,19 @@
             fetch('/get-plan')
                 .then(response => response.json())
                 .then(data => {
+                    console.log('Received plan data:', data); // Добавляем для отладки
                     if (data.content) {
-                        // Раэкранируем контент
-                        const content = data.content
-                            .replace(/\\n/g, '\n')
-                            .replace(/\\t/g, '\t')
-                            .replace(/\\"/g, '"');
-                            
                         // Получаем новые задачи
                         fetch('/get-new-tasks')
                             .then(response => response.json())
                             .then(newTasks => {
-                                document.getElementById('factContent').innerHTML = formatFactContent(content, newTasks);
+                                console.log('Received new tasks:', newTasks); // Добавляем для отладки
+                                document.getElementById('factContent').innerHTML = formatFactContent(data.content, newTasks);
                                 const modal = new bootstrap.Modal(document.getElementById('factModal'));
                                 modal.show();
                             })
                             .catch(error => {
-                                console.error('Error:', error);
+                                console.error('Error loading new tasks:', error);
                                 alert('Ошибка при загрузке новых задач');
                             });
                     } else {
@@ -459,12 +455,13 @@
                     }
                 })
                 .catch(error => {
-                    console.error('Error:', error);
+                    console.error('Error loading plan:', error);
                     alert('Ошибка при загрузке плана');
                 });
         }
 
         function formatFactContent(planContent, newTasks) {
+            console.log('Formatting content:', planContent); // Добавляем для отладки
             // Разбиваем контент плана на строки
             const lines = planContent.split('\n');
             let html = '';
@@ -518,6 +515,7 @@
                 });
             }
             
+            console.log('Generated HTML:', html); // Добавляем для отладки
             return html;
         }
 

@@ -8,7 +8,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -353,13 +352,19 @@ func main() {
 			return
 		}
 
-		// Экранируем специальные символы
-		content = strings.ReplaceAll(content, `"`, `\"`)
-		content = strings.ReplaceAll(content, "\n", "\\n")
-		content = strings.ReplaceAll(content, "\t", "\\t")
+		// Создаем структуру для JSON
+		type PlanResponse struct {
+			Content string `json:"content"`
+		}
+		response := PlanResponse{Content: content}
 
+		// Отправляем JSON
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"content": "` + content + `"}`))
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			log.Printf("Error encoding JSON: %v", err)
+			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+			return
+		}
 	})
 
 	// Добавляем обработчик для получения новых задач
