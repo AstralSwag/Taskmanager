@@ -67,20 +67,39 @@ func initDB() {
 	sslmode := os.Getenv("DB_SSLMODE")
 
 	if host == "" || port == "" || user == "" || password == "" || dbname == "" {
+		log.Printf("Missing required database environment variables:")
+		log.Printf("DB_HOST: %s", host)
+		log.Printf("DB_PORT: %s", port)
+		log.Printf("DB_USER: %s", user)
+		log.Printf("DB_NAME: %s", dbname)
+		log.Printf("DB_SSLMODE: %s", sslmode)
 		log.Fatal("Missing required database environment variables")
 	}
 
 	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		host, port, user, password, dbname, sslmode)
 
+	log.Printf("Connecting to database at %s:%s", host, port)
 	db, err = sql.Open("postgres", connStr)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Error opening database connection: %v", err)
 	}
 
-	if err = db.Ping(); err != nil {
-		log.Fatal(err)
+	// Устанавливаем максимальное количество соединений
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(25)
+	db.SetConnMaxLifetime(5 * time.Minute)
+
+	// Проверяем подключение
+	for i := 0; i < 5; i++ {
+		if err = db.Ping(); err == nil {
+			log.Printf("Successfully connected to database")
+			return
+		}
+		log.Printf("Failed to connect to database, retrying in 5 seconds... (attempt %d/5)", i+1)
+		time.Sleep(5 * time.Second)
 	}
+	log.Fatalf("Failed to connect to database after 5 attempts: %v", err)
 }
 
 func timeSince(t time.Time) Duration {

@@ -6,7 +6,7 @@ services:
       - DB_PORT=5432
       - DB_USER=${REPLICATOR_USER}
       - DB_PASSWORD=${REPLICATOR_PASSWORD}
-      - DB_NAME=replicator
+      - DB_NAME=${REPLICATOR_DB}
       - DB_SSLMODE=disable
     volumes:
       - ./static:/app/static
