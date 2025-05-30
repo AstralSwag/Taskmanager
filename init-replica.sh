@@ -29,7 +29,7 @@ until pg_isready; do
 done
 
 # Создаем пользователя для репликации
-su postgres -c "psql -v ON_ERROR_STOP=1 <<-EOSQL
+psql -v ON_ERROR_STOP=1 <<-EOSQL
     DO
     \$do\$
     BEGIN
@@ -38,7 +38,7 @@ su postgres -c "psql -v ON_ERROR_STOP=1 <<-EOSQL
         END IF;
     END
     \$do\$;
-EOSQL"
+EOSQL
 
 # Создаем скрипт для подписки на публикацию
 cat > /var/lib/postgresql/subscribe.sh <<'EOF'

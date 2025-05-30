@@ -23,7 +23,7 @@ CONN_STR="host=${PLANE_HOST} port=${PLANE_PORT} user=${REPLICATOR_USER} password
 echo "Creating subscription with connection string: host=${PLANE_HOST} port=${PLANE_PORT} user=${REPLICATOR_USER} dbname=plane"
 
 # Создание подписки
-su postgres -c "PGPASSWORD='${REPLICATOR_PASSWORD}' psql -v ON_ERROR_STOP=1 -U '${REPLICATOR_USER}' -d replicator <<EOF
+PGPASSWORD="${REPLICATOR_PASSWORD}" psql -v ON_ERROR_STOP=1 -U "${REPLICATOR_USER}" -d replicator <<EOF
 DO
 \$do\$
 BEGIN
@@ -34,4 +34,4 @@ BEGIN
     END IF;
 END
 \$do\$;
-EOF" 
+EOF 
