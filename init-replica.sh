@@ -38,14 +38,14 @@ cat > /var/lib/postgresql/subscribe.sh <<'EOF'
 set -e
 
 # Проверка доступности БД
-until PGPASSWORD="$DB_PASSWORD" pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$POSTGRES_USER"; do
+until pg_isready; do
     echo "Waiting for primary database at $DB_HOST:$DB_PORT..."
     sleep 2
 done
 
 # Создание подписки без вложенного heredoc
-PGPASSWORD="$DB_PASSWORD" psql -v ON_ERROR_STOP=1 -h "$DB_HOST" -p "$DB_PORT" -U "$POSTGRES_USER" -d "$DB_NAME" \
-  -c "CREATE SUBSCRIPTION IF NOT EXISTS site_sub CONNECTION 'host=$DB_HOST port=$DB_PORT user=$POSTGRES_USER password=$DB_PASSWORD dbname=$DB_NAME' PUBLICATION site_pub;"
+PGPASSWORD="$DB_PASSWORD" psql -v ON_ERROR_STOP=1 -h "$DB_HOST" -p "$DB_PORT" -U "$POSTGRES_USER" -d "plane" \
+  -c "CREATE SUBSCRIPTION IF NOT EXISTS site_sub CONNECTION 'host=$DB_HOST port=$DB_PORT user=$POSTGRES_USER password=$DB_PASSWORD dbname=plane' PUBLICATION site_pub;"
 EOF
 
 # Устанавливаем правильные права доступа
