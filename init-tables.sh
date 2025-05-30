@@ -1,6 +1,12 @@
 #!/bin/bash
 set -e
 
+# Ожидаем, пока PostgreSQL будет готов принимать подключения
+until PGPASSWORD="$DB_PASSWORD" psql -U "$POSTGRES_USER" -d replicator -c '\q'; do
+  echo "Ожидание запуска PostgreSQL..."
+  sleep 2
+done
+
 PGPASSWORD="$DB_PASSWORD" psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<'EOSQL'
     CREATE TABLE states (
         id UUID PRIMARY KEY,
