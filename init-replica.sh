@@ -58,20 +58,14 @@ done
 
 # Создаем подписку
 PGPASSWORD="$DB_PASSWORD" psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$DB_NAME" <<-'EOSQL'
-    DO
-    $$
+    DO $$
     BEGIN
         IF NOT EXISTS (SELECT 1 FROM pg_subscription WHERE subname = 'site_sub') THEN
             CREATE SUBSCRIPTION site_sub 
-            CONNECTION 'host=' || current_setting('DB_HOST') || 
-                      ' port=' || current_setting('DB_PORT') || 
-                      ' user=' || current_setting('POSTGRES_USER') || 
-                      ' password=' || current_setting('DB_PASSWORD') || 
-                      ' dbname=' || current_setting('DB_NAME')
+            CONNECTION 'host=$$DB_HOST$$ port=$$DB_PORT$$ user=$$POSTGRES_USER$$ password=$$DB_PASSWORD$$ dbname=$$DB_NAME$$'
             PUBLICATION site_pub;
         END IF;
-    END
-    $$;
+    END $$;
 EOSQL
 EOF
 
