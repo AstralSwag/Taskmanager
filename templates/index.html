@@ -461,20 +461,21 @@
         }
 
         function formatFactContent(planContent, newTasks) {
-            console.log('Formatting content:', planContent); // Добавляем для отладки
+            console.log('Formatting content:', planContent);
             // Разбиваем контент плана на строки
             const lines = planContent.split('\n');
             let html = '';
             
             // Обрабатываем задачи из плана
-            for (let i = 3; i < lines.length; i++) {
-                if (lines[i].startsWith('|') && !lines[i].includes('---')) {
-                    const cells = lines[i].split('|').filter(cell => cell.trim() !== '');
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (line.startsWith('|') && !line.includes('---')) {
+                    const cells = line.split('|').map(cell => cell.trim()).filter(cell => cell !== '');
                     if (cells.length >= 5) {
-                        const idMatch = cells[2].trim().match(/\[(.*?)\]\((.*?)\)/);
-                        const id = idMatch ? idMatch[1] : cells[2].trim();
+                        const idMatch = cells[2].match(/\[(.*?)\]\((.*?)\)/);
+                        const id = idMatch ? idMatch[1] : cells[2];
                         const idLink = idMatch ? idMatch[2] : '';
-                        const estimate = convertEstimate(cells[0].trim());
+                        const estimate = cells[0];
                         
                         html += `
                             <div class="plan-task" data-id="${id}" data-link="${idLink}">
@@ -482,10 +483,10 @@
                                     <a href="${idLink}" class="task-id" target="_blank">${id}</a>
                                     <span class="task-estimate">${estimate} points</span>
                                 </div>
-                                <div class="task-project">${cells[1].trim()}</div>
-                                <div class="task-name">${cells[3].trim()}</div>
+                                <div class="task-project">${cells[1]}</div>
+                                <div class="task-name">${cells[3]}</div>
                                 <div class="task-comment">
-                                    <textarea class="form-control fact-comment" rows="2" placeholder="Добавьте комментарий о выполнении...">${cells[4].trim()}</textarea>
+                                    <textarea class="form-control fact-comment" rows="2" placeholder="Добавьте комментарий о выполнении...">${cells[4]}</textarea>
                                 </div>
                             </div>
                         `;
@@ -498,7 +499,7 @@
                 html += '<div class="new-tasks-divider">Новые задачи</div>';
                 newTasks.forEach(task => {
                     const taskId = `${task.project_identifier}-${task.sequence_id}`;
-                    const estimate = convertEstimate(task.estimate || '0');
+                    const estimate = task.estimate || '0';
                     html += `
                         <div class="plan-task" data-id="${taskId}" data-link="https://plane.it4retail.tech/it4retail/browse/${taskId}/">
                             <div class="task-header">
@@ -515,7 +516,7 @@
                 });
             }
             
-            console.log('Generated HTML:', html); // Добавляем для отладки
+            console.log('Generated HTML:', html);
             return html;
         }
 
