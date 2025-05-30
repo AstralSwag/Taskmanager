@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+echo "DEBUG: Environment variables:"
+echo "-----------------------------"
+printenv | grep -E 'POSTGRES_DB|REPLICATOR_USER|REPLICATOR_PASSWORD|PLANE_DB|PLANE_HOST|PLANE_PORT'
+echo "-----------------------------"
+
 # Проверяем необходимые переменные окружения
 if [ -z "$PLANE_HOST" ] || [ -z "$PLANE_PORT" ]; then
   echo "Error: Missing required environment variables for remote DB"
@@ -16,6 +21,8 @@ if [ -z "$PLANE_DB" ]; then
   echo "Error: Missing PLANE_DB environment variable for remote DB name"
   exit 1
 fi
+
+# Далее — логика подписки
 
 # Ждём, пока локальная БД запустится
 until PGPASSWORD="$REPLICATOR_PASSWORD" psql -U "$REPLICATOR_USER" -d "$POSTGRES_DB" -c '\q'; do
