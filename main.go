@@ -274,11 +274,13 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := struct {
+	type PageData struct {
 		Issues        []Issue
 		Users         map[string]string
 		CurrentUserID string
-	}{
+	}
+
+	data := PageData{
 		Issues:        issues,
 		Users:         users,
 		CurrentUserID: currentUserID,
@@ -295,6 +297,7 @@ func loadUsers() error {
 		return fmt.Errorf("error reading users.json: %v", err)
 	}
 
+	users = make(map[string]string) // Инициализируем карту перед использованием
 	err = json.Unmarshal(file, &users)
 	if err != nil {
 		return fmt.Errorf("error parsing users.json: %v", err)
