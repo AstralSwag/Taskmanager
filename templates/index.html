@@ -465,11 +465,26 @@
             // Разбиваем контент плана на строки
             const lines = planContent.split('\n');
             let html = '';
+            let foundTableStart = false;
             
             // Обрабатываем задачи из плана
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i].trim();
-                if (line.startsWith('|') && !line.includes('---')) {
+                
+                // Пропускаем строки до начала таблицы
+                if (!foundTableStart) {
+                    if (line.startsWith('|') && line.includes('Estimate points')) {
+                        foundTableStart = true;
+                    }
+                    continue;
+                }
+                
+                // Пропускаем строку с разделителями таблицы
+                if (line.includes('---')) {
+                    continue;
+                }
+                
+                if (line.startsWith('|')) {
                     const cells = line.split('|').map(cell => cell.trim()).filter(cell => cell !== '');
                     if (cells.length >= 5) {
                         const idMatch = cells[2].match(/\[(.*?)\]\((.*?)\)/);
