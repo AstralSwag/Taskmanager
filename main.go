@@ -54,7 +54,14 @@ type Duration struct {
 	Hours int
 }
 
+type User struct {
+	ID   string
+	Name string
+}
+
 var db *sql.DB
+var users map[string]string
+var currentUserID string
 
 func initDB() {
 	var err error
@@ -126,7 +133,7 @@ func getIssues() ([]Issue, error) {
 				MAX(created_at) as last_assigned_at
 			FROM issue_assignees
 			WHERE deleted_at IS NULL
-			AND assignee_id = '7639588f-d211-4cdc-a57d-697111edaf49'
+			AND assignee_id = $1
 			GROUP BY issue_id
 		),
 		ranked_issues AS (
@@ -165,7 +172,7 @@ func getIssues() ([]Issue, error) {
 			LEFT JOIN last_assignments la ON i.id = la.issue_id
 			WHERE i.deleted_at IS NULL
 			AND ia.deleted_at IS NULL
-			AND ia.assignee_id = '7639588f-d211-4cdc-a57d-697111edaf49'
+			AND ia.assignee_id = $1
 			AND s.name IN ('Backlog', 'Todo', 'In Progress')
 		)
 		SELECT 
@@ -189,7 +196,7 @@ func getIssues() ([]Issue, error) {
 		LIMIT 50
 	`
 
-	rows, err := db.Query(query)
+	rows, err := db.Query(query, currentUserID)
 	if err != nil {
 		log.Printf("Error executing query: %v", err)
 		return nil, err
@@ -238,6 +245,18 @@ func getIssues() ([]Issue, error) {
 }
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if userID := r.FormValue("user_id"); userID != "" {
+			currentUserID = userID
+		}
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+
 	issues, err := getIssues()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -248,22 +267,91 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		"timeSince": timeSince,
 	}
 
-	tmpl := template.New("index.html").Funcs(funcMap)
-	tmpl, err = tmpl.ParseFiles("templates/index.html")
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+	tmpl := template.Must(template.New("index").Funcs(funcMap).Parse(`
+		<!DOCTYPE html>
+		<html>
+		<head>
+			<title>Task Manager</title>
+			<style>
+				body { font-family: Arial, sans-serif; margin: 20px; }
+				.issue { margin-bottom: 20px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+				.priority-urgent { background-color: #ffebee; }
+				.priority-high { background-color: #fff3e0; }
+				.priority-medium { background-color: #e8f5e9; }
+				.priority-low { background-color: #e3f2fd; }
+				.user-selector { margin-bottom: 20px; }
+				.user-selector select { padding: 5px; font-size: 16px; }
+				.user-selector button { padding: 5px 10px; font-size: 16px; }
+			</style>
+		</head>
+		<body>
+			<div class="user-selector">
+				<form method="POST">
+					<select name="user_id" onchange="this.form.submit()">
+						{{range $id, $name := .Users}}
+						<option value="{{$id}}" {{if eq $id $.CurrentUserID}}selected{{end}}>{{$name}}</option>
+						{{end}}
+					</select>
+				</form>
+			</div>
+			{{range .Issues}}
+			<div class="issue priority-{{.Priority}}">
+				<h3>{{.Name}}</h3>
+				<p><strong>Project:</strong> {{.Project}} ({{.ProjectIdentifier}}-{{.SequenceID}})</p>
+				<p><strong>State:</strong> {{.State}}</p>
+				<p><strong>Priority:</strong> {{.Priority}}</p>
+				{{if .Point}}<p><strong>Points:</strong> {{.Point}}</p>{{end}}
+				{{if .Estimate}}
+				<p><strong>Estimate:</strong> {{.Estimate.Name}} ({{.Estimate.Value}})</p>
+				{{end}}
+				<p><strong>Created:</strong> {{.CreatedAt.Format "2006-01-02 15:04:05"}} ({{timeSince .CreatedAt}})</p>
+				<p><strong>Assigned:</strong> {{.AssignedAt.Format "2006-01-02 15:04:05"}} ({{timeSince .AssignedAt}})</p>
+			</div>
+			{{end}}
+		</body>
+		</html>
+	`))
+
+	data := struct {
+		Issues        []Issue
+		Users         map[string]string
+		CurrentUserID string
+	}{
+		Issues:        issues,
+		Users:         users,
+		CurrentUserID: currentUserID,
 	}
 
-	err = tmpl.Execute(w, issues)
-	if err != nil {
+	if err := tmpl.Execute(w, data); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
+func loadUsers() error {
+	file, err := os.ReadFile("users.json")
+	if err != nil {
+		return fmt.Errorf("error reading users.json: %v", err)
+	}
+
+	err = json.Unmarshal(file, &users)
+	if err != nil {
+		return fmt.Errorf("error parsing users.json: %v", err)
+	}
+
+	// Устанавливаем первого пользователя как текущего по умолчанию
+	for id := range users {
+		currentUserID = id
+		break
+	}
+
+	return nil
+}
+
 func main() {
 	initDB()
-	defer db.Close()
+	if err := loadUsers(); err != nil {
+		log.Fatalf("Error loading users: %v", err)
+	}
 
 	// Создаем директорию для данных если её нет
 	if err := os.MkdirAll("data", 0755); err != nil {
@@ -396,7 +484,7 @@ func main() {
 					MAX(created_at) as last_assigned_at
 				FROM issue_assignees
 				WHERE deleted_at IS NULL
-				AND assignee_id = '7639588f-d211-4cdc-a57d-697111edaf49'
+				AND assignee_id = $1
 				GROUP BY issue_id
 			)
 			SELECT DISTINCT
@@ -417,11 +505,11 @@ func main() {
 			LEFT JOIN last_assignments la ON i.id = la.issue_id
 			WHERE i.deleted_at IS NULL
 			AND ia.deleted_at IS NULL
-			AND ia.assignee_id = '7639588f-d211-4cdc-a57d-697111edaf49'
-			AND i.created_at > $1
+			AND ia.assignee_id = $1
+			AND i.created_at > $2
 		`
 
-		rows, err := db.Query(query, lastPlanDate)
+		rows, err := db.Query(query, currentUserID, lastPlanDate)
 		if err != nil {
 			log.Printf("Error executing query: %v", err)
 			http.Error(w, "Failed to get new tasks", http.StatusInternalServerError)
