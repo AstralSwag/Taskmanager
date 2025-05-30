@@ -80,26 +80,36 @@ func initDB() {
 		host, port, user, password, dbname, sslmode)
 
 	log.Printf("Connecting to database at %s:%s", host, port)
-	db, err = sql.Open("postgres", connStr)
-	if err != nil {
-		log.Fatalf("Error opening database connection: %v", err)
-	}
 
-	// Устанавливаем максимальное количество соединений
-	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(25)
-	db.SetConnMaxLifetime(5 * time.Minute)
+	// Try to connect with retries
+	maxRetries := 30
+	retryInterval := 2 * time.Second
 
-	// Проверяем подключение
-	for i := 0; i < 5; i++ {
+	for i := 0; i < maxRetries; i++ {
+		db, err = sql.Open("postgres", connStr)
+		if err != nil {
+			log.Printf("Error opening database connection (attempt %d/%d): %v", i+1, maxRetries, err)
+			time.Sleep(retryInterval)
+			continue
+		}
+
+		// Set connection pool settings
+		db.SetMaxOpenConns(25)
+		db.SetMaxIdleConns(25)
+		db.SetConnMaxLifetime(5 * time.Minute)
+
+		// Test the connection
 		if err = db.Ping(); err == nil {
 			log.Printf("Successfully connected to database")
 			return
 		}
-		log.Printf("Failed to connect to database, retrying in 5 seconds... (attempt %d/5)", i+1)
-		time.Sleep(5 * time.Second)
+
+		log.Printf("Failed to connect to database (attempt %d/%d): %v", i+1, maxRetries, err)
+		db.Close()
+		time.Sleep(retryInterval)
 	}
-	log.Fatalf("Failed to connect to database after 5 attempts: %v", err)
+
+	log.Fatalf("Failed to connect to database after %d attempts: %v", maxRetries, err)
 }
 
 func timeSince(t time.Time) Duration {

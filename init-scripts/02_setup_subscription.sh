@@ -8,52 +8,54 @@ printenv | grep -E 'POSTGRES_DB|REPLICATOR_USER|REPLICATOR_PASSWORD|PLANE_DB|PLA
 echo "-----------------------------"
 
 # Проверяем необходимые переменные окружения
-if [ -z "$PLANE_HOST" ] || [ -z "$PLANE_PORT" ]; then
-  echo "Error: Missing required environment variables for remote DB"
+if [ -z "$PLANE_HOST" ] || [ -z "$PLANE_PORT" ] || [ -z "$REPLICATOR_USER" ] || [ -z "$REPLICATOR_PASSWORD" ] || [ -z "$POSTGRES_DB" ] || [ -z "$PLANE_DB" ]; then
+  echo "Error: Required environment variables are not set"
   exit 1
 fi
-
-if [ -z "$REPLICATOR_USER" ] || [ -z "$REPLICATOR_PASSWORD" ] || [ -z "$POSTGRES_DB" ]; then
-  echo "Error: Missing required environment variables for local DB"
-  exit 1
-fi
-
-if [ -z "$PLANE_DB" ]; then
-  echo "Error: Missing PLANE_DB environment variable for remote DB name"
-  exit 1
-fi
-
-# Далее — логика подписки
 
 # Ждём, пока локальная БД запустится
 until PGPASSWORD="$REPLICATOR_PASSWORD" psql -U "$REPLICATOR_USER" -d "$POSTGRES_DB" -c '\q'; do
   echo "Waiting for PostgreSQL to start..."
-  sleep 2
+  sleep 1
 done
+
+echo "PostgreSQL is up - executing command"
 
 # Проверяем, существует ли подписка на локальной БД
 SUB_EXISTS=$(PGPASSWORD="$REPLICATOR_PASSWORD" psql -U "$REPLICATOR_USER" -d "$POSTGRES_DB" -tAc "SELECT 1 FROM pg_subscription WHERE subname = 'site_sub'")
 
 if [ "$SUB_EXISTS" = "1" ]; then
   echo "Subscription 'site_sub' already exists. Skipping creation."
-else
-  # Проверяем, существует ли слот на удалённой БД
-  SLOT_EXISTS=$(PGPASSWORD="$REPLICATOR_PASSWORD" psql -U "$REPLICATOR_USER" -h "$PLANE_HOST" -p "$PLANE_PORT" -d "$PLANE_DB" -tAc "SELECT 1 FROM pg_replication_slots WHERE slot_name = 'site_sub'")
+  exit 0
+fi
 
-  if [ "$SLOT_EXISTS" = "1" ]; then
-    echo "Removing existing replication slot on remote DB: site_sub"
-    PGPASSWORD="$REPLICATOR_PASSWORD" psql -U "$REPLICATOR_USER" -h "$PLANE_HOST" -p "$PLANE_PORT" -d "$PLANE_DB" -c "SELECT pg_drop_replication_slot('site_sub');"
-  fi
+# Проверяем, существует ли слот на удалённой БД
+SLOT_EXISTS=$(PGPASSWORD="$REPLICATOR_PASSWORD" psql -U "$REPLICATOR_USER" -h "$PLANE_HOST" -p "$PLANE_PORT" -d "$PLANE_DB" -tAc "SELECT 1 FROM pg_replication_slots WHERE slot_name = 'site_sub'")
 
-  # Создаём подписку на локальной БД
-  echo "Creating subscription 'site_sub'..."
-  CONN_STR="host=$PLANE_HOST port=$PLANE_PORT user=$REPLICATOR_USER password=$REPLICATOR_PASSWORD dbname=$PLANE_DB"
+if [ "$SLOT_EXISTS" = "1" ]; then
+  echo "Removing existing replication slot on remote DB: site_sub"
+  PGPASSWORD="$REPLICATOR_PASSWORD" psql -U "$REPLICATOR_USER" -h "$PLANE_HOST" -p "$PLANE_PORT" -d "$PLANE_DB" -c "SELECT pg_drop_replication_slot('site_sub');"
+fi
 
-  PGPASSWORD="$REPLICATOR_PASSWORD" psql -U "$REPLICATOR_USER" -d "$POSTGRES_DB" -c "
+# Создаём подписку на локальной БД
+echo "Creating subscription 'site_sub'..."
+CONN_STR="host=$PLANE_HOST port=$PLANE_PORT user=$REPLICATOR_USER password=$REPLICATOR_PASSWORD dbname=$PLANE_DB"
+
+PGPASSWORD="$REPLICATOR_PASSWORD" psql -U "$REPLICATOR_USER" -d "$POSTGRES_DB" -c "
     CREATE SUBSCRIPTION site_sub
     CONNECTION '$CONN_STR'
-    PUBLICATION site_pub;
-  "
+    PUBLICATION site_pub
+    WITH (copy_data = true, create_slot = true);
+"
 
-  echo "Subscription created successfully."
-fi
+# Modify tables to handle conflicts
+PGPASSWORD="$REPLICATOR_PASSWORD" psql -U "$REPLICATOR_USER" -d "$POSTGRES_DB" -c "
+    ALTER TABLE issue_assignees REPLICA IDENTITY FULL;
+    ALTER TABLE issues REPLICA IDENTITY FULL;
+    ALTER TABLE projects REPLICA IDENTITY FULL;
+    ALTER TABLE states REPLICA IDENTITY FULL;
+    ALTER TABLE estimates REPLICA IDENTITY FULL;
+    ALTER TABLE estimate_points REPLICA IDENTITY FULL;
+"
+
+echo "Subscription created successfully."
