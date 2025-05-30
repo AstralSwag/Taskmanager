@@ -48,7 +48,7 @@ CONN_STR="host=${DB_HOST} port=${DB_PORT} user=${POSTGRES_USER} password=${DB_PA
 
 # Создание подписки
 PGPASSWORD="$DB_PASSWORD" psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d replicator <<EOF
-CREATE SUBSCRIPTION IF NOT EXISTS site_sub
+CREATE SUBSCRIPTION site_sub
 CONNECTION '${CONN_STR}'
 PUBLICATION site_pub;
 EOF
