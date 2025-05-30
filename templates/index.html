@@ -436,11 +436,17 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.content) {
+                        // Раэкранируем контент
+                        const content = data.content
+                            .replace(/\\n/g, '\n')
+                            .replace(/\\t/g, '\t')
+                            .replace(/\\"/g, '"');
+                            
                         // Получаем новые задачи
                         fetch('/get-new-tasks')
                             .then(response => response.json())
                             .then(newTasks => {
-                                document.getElementById('factContent').innerHTML = formatFactContent(data.content, newTasks);
+                                document.getElementById('factContent').innerHTML = formatFactContent(content, newTasks);
                                 const modal = new bootstrap.Modal(document.getElementById('factModal'));
                                 modal.show();
                             })
