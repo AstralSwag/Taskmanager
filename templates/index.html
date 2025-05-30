@@ -65,6 +65,15 @@
     </div>
     <div class="container mt-5">
         <h1 class="text-center mb-4">Александр навайбкодил</h1>
+        <div class="user-selector mb-4">
+            <form method="POST" class="d-flex align-items-center justify-content-center">
+                <select name="user_id" class="form-select" style="width: auto;" onchange="this.form.submit()">
+                    {{range $id, $name := .Users}}
+                    <option value="{{$id}}" {{if eq $id $.CurrentUserID}}selected{{end}}>{{$name}}</option>
+                    {{end}}
+                </select>
+            </form>
+        </div>
         <div class="issues-list">
             <div class="select-all-container">
                 <div class="issue-checkbox">

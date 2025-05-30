@@ -267,50 +267,12 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		"timeSince": timeSince,
 	}
 
-	tmpl := template.Must(template.New("index").Funcs(funcMap).Parse(`
-		<!DOCTYPE html>
-		<html>
-		<head>
-			<title>Task Manager</title>
-			<style>
-				body { font-family: Arial, sans-serif; margin: 20px; }
-				.issue { margin-bottom: 20px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
-				.priority-urgent { background-color: #ffebee; }
-				.priority-high { background-color: #fff3e0; }
-				.priority-medium { background-color: #e8f5e9; }
-				.priority-low { background-color: #e3f2fd; }
-				.user-selector { margin-bottom: 20px; }
-				.user-selector select { padding: 5px; font-size: 16px; }
-				.user-selector button { padding: 5px 10px; font-size: 16px; }
-			</style>
-		</head>
-		<body>
-			<div class="user-selector">
-				<form method="POST">
-					<select name="user_id" onchange="this.form.submit()">
-						{{range $id, $name := .Users}}
-						<option value="{{$id}}" {{if eq $id $.CurrentUserID}}selected{{end}}>{{$name}}</option>
-						{{end}}
-					</select>
-				</form>
-			</div>
-			{{range .Issues}}
-			<div class="issue priority-{{.Priority}}">
-				<h3>{{.Name}}</h3>
-				<p><strong>Project:</strong> {{.Project}} ({{.ProjectIdentifier}}-{{.SequenceID}})</p>
-				<p><strong>State:</strong> {{.State}}</p>
-				<p><strong>Priority:</strong> {{.Priority}}</p>
-				{{if .Point}}<p><strong>Points:</strong> {{.Point}}</p>{{end}}
-				{{if .Estimate}}
-				<p><strong>Estimate:</strong> {{.Estimate.Name}} ({{.Estimate.Value}})</p>
-				{{end}}
-				<p><strong>Created:</strong> {{.CreatedAt.Format "2006-01-02 15:04:05"}} ({{timeSince .CreatedAt}})</p>
-				<p><strong>Assigned:</strong> {{.AssignedAt.Format "2006-01-02 15:04:05"}} ({{timeSince .AssignedAt}})</p>
-			</div>
-			{{end}}
-		</body>
-		</html>
-	`))
+	tmpl := template.New("index.html").Funcs(funcMap)
+	tmpl, err = tmpl.ParseFiles("templates/index.html")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	data := struct {
 		Issues        []Issue
