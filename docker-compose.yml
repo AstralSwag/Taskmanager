@@ -43,9 +43,9 @@ services:
       - POSTGRES_DB=${DB_NAME}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init-replica.sh:/docker-entrypoint-initdb.d/init-replica.sh:ro
-      - ./init-tables.sh:/docker-entrypoint-initdb.d/init-tables.sh:ro
-      - ./subscribe.sh:/docker-entrypoint-initdb.d/subscribe.sh:ro
+        - ./init-replica.sh:/docker-entrypoint-initdb.d/00-init-replica.sh:ro
+        - ./init-tables.sh:/docker-entrypoint-initdb.d/01-init-tables.sh:ro
+        - ./subscribe.sh:/docker-entrypoint-initdb.d/02-subscribe.sh:ro
     ports:
       - "5432:5432"
     restart: unless-stopped
