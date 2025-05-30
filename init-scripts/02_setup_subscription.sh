@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+set -x
 
 echo "DEBUG: Environment variables:"
 echo "-----------------------------"
