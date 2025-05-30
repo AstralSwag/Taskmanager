@@ -75,5 +75,4 @@ EOF
 chmod 755 /var/lib/postgresql/subscribe.sh
 chown postgres:postgres /var/lib/postgresql/subscribe.sh
 
-# Запускаем скрипт подписки
-su postgres -c "/var/lib/postgresql/subscribe.sh"
+var/lib/postgresql/subscribe.sh
