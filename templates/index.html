@@ -497,9 +497,9 @@
                     const taskId = `${task.project_identifier}-${task.sequence_id}`;
                     const estimate = convertEstimate(task.estimate || '0');
                     html += `
-                        <div class="plan-task" data-id="${taskId}" data-link="${task.link}">
+                        <div class="plan-task" data-id="${taskId}" data-link="https://plane.it4retail.tech/it4retail/browse/${taskId}/">
                             <div class="task-header">
-                                <a href="${task.link}" class="task-id" target="_blank">${taskId}</a>
+                                <a href="https://plane.it4retail.tech/it4retail/browse/${taskId}/" class="task-id" target="_blank">${taskId}</a>
                                 <span class="task-estimate">${estimate} points</span>
                             </div>
                             <div class="task-project">${task.project}</div>
