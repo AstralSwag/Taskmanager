@@ -25,8 +25,8 @@ echo "PostgreSQL is up - executing command"
 SUB_EXISTS=$(PGPASSWORD="$REPLICATOR_PASSWORD" psql -U "$REPLICATOR_USER" -d "$POSTGRES_DB" -tAc "SELECT 1 FROM pg_subscription WHERE subname = 'site_sub'")
 
 if [ "$SUB_EXISTS" = "1" ]; then
-  echo "Subscription 'site_sub' already exists. Skipping creation."
-  exit 0
+  echo "Dropping existing subscription 'site_sub'..."
+  PGPASSWORD="$REPLICATOR_PASSWORD" psql -U "$REPLICATOR_USER" -d "$POSTGRES_DB" -c "DROP SUBSCRIPTION site_sub;"
 fi
 
 # Проверяем, существует ли слот на удалённой БД
@@ -36,6 +36,17 @@ if [ "$SLOT_EXISTS" = "1" ]; then
   echo "Removing existing replication slot on remote DB: site_sub"
   PGPASSWORD="$REPLICATOR_PASSWORD" psql -U "$REPLICATOR_USER" -h "$PLANE_HOST" -p "$PLANE_PORT" -d "$PLANE_DB" -c "SELECT pg_drop_replication_slot('site_sub');"
 fi
+
+# Очищаем существующие данные
+echo "Clearing existing data..."
+PGPASSWORD="$REPLICATOR_PASSWORD" psql -U "$REPLICATOR_USER" -d "$POSTGRES_DB" -c "
+  TRUNCATE TABLE issue_assignees CASCADE;
+  TRUNCATE TABLE issues CASCADE;
+  TRUNCATE TABLE projects CASCADE;
+  TRUNCATE TABLE states CASCADE;
+  TRUNCATE TABLE estimates CASCADE;
+  TRUNCATE TABLE estimate_points CASCADE;
+"
 
 # Создаём подписку на локальной БД
 echo "Creating subscription 'site_sub'..."
@@ -48,7 +59,8 @@ PGPASSWORD="$REPLICATOR_PASSWORD" psql -U "$REPLICATOR_USER" -d "$POSTGRES_DB" -
     WITH (copy_data = true, create_slot = true);
 "
 
-# Modify tables to handle conflicts
+# Настраиваем обработку конфликтов для каждой таблицы
+echo "Setting up conflict handling..."
 PGPASSWORD="$REPLICATOR_PASSWORD" psql -U "$REPLICATOR_USER" -d "$POSTGRES_DB" -c "
     ALTER TABLE issue_assignees REPLICA IDENTITY FULL;
     ALTER TABLE issues REPLICA IDENTITY FULL;
@@ -56,6 +68,25 @@ PGPASSWORD="$REPLICATOR_PASSWORD" psql -U "$REPLICATOR_USER" -d "$POSTGRES_DB" -
     ALTER TABLE states REPLICA IDENTITY FULL;
     ALTER TABLE estimates REPLICA IDENTITY FULL;
     ALTER TABLE estimate_points REPLICA IDENTITY FULL;
+
+    CREATE OR REPLACE FUNCTION handle_issue_assignees_conflict()
+    RETURNS TRIGGER AS \$\$
+    BEGIN
+        IF TG_OP = 'INSERT' THEN
+            INSERT INTO issue_assignees (issue_id, assignee_id, created_at, updated_at)
+            VALUES (NEW.issue_id, NEW.assignee_id, NEW.created_at, NEW.updated_at)
+            ON CONFLICT (issue_id, assignee_id) DO NOTHING;
+            RETURN NULL;
+        END IF;
+        RETURN NEW;
+    END;
+    \$\$ LANGUAGE plpgsql;
+
+    DROP TRIGGER IF EXISTS issue_assignees_conflict_trigger ON issue_assignees;
+    CREATE TRIGGER issue_assignees_conflict_trigger
+    BEFORE INSERT ON issue_assignees
+    FOR EACH ROW
+    EXECUTE FUNCTION handle_issue_assignees_conflict();
 "
 
-echo "Subscription created successfully."
+echo "Subscription setup completed successfully."
