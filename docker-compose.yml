@@ -35,9 +35,10 @@ services:
     environment:
       POSTGRES_USER: ${REPLICATOR_USER}
       POSTGRES_PASSWORD: ${REPLICATOR_PASSWORD}
-      POSTGRES_DB: plane
+      POSTGRES_DB: ${REPLICATOR_DB}
       PLANE_HOST: ${PLANE_HOST}
-      PLANE_PORT: ${PLANE_PORT}    
+      PLANE_PORT: ${PLANE_PORT}   
+      PLANE_DB: ${PLANE_DB}
     volumes:
       - ./init-scripts:/docker-entrypoint-initdb.d
     command: postgres -c wal_level=logical
