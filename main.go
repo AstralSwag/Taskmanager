@@ -287,6 +287,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := tmpl.Execute(w, data); err != nil {
+		log.Printf("Template execution error: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
