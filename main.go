@@ -345,9 +345,15 @@ func main() {
 	}
 	defer sqliteDB.Close()
 
-	// Создаем таблицу, если она не существует
+	// Удаляем существующую таблицу, если она есть
+	_, err = sqliteDB.Exec(`DROP TABLE IF EXISTS plans`)
+	if err != nil {
+		log.Fatal("Failed to drop plans table:", err)
+	}
+
+	// Создаем таблицу с новой структурой
 	_, err = sqliteDB.Exec(`
-		CREATE TABLE IF NOT EXISTS plans (
+		CREATE TABLE plans (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			user_id TEXT NOT NULL,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -358,7 +364,7 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to create plans table:", err)
 	}
-	log.Printf("Successfully connected to SQLite database and created/verified plans table")
+	log.Printf("Successfully connected to SQLite database and created plans table")
 
 	http.HandleFunc("/", indexHandler)
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
