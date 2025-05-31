@@ -346,13 +346,13 @@ func main() {
 	defer sqliteDB.Close()
 
 	// Проверяем существование таблицы
-	var tableExists bool
-	err = sqliteDB.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='plans'").Scan(&tableExists)
+	var tableName string
+	err = sqliteDB.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='plans'").Scan(&tableName)
 	if err != nil && err != sql.ErrNoRows {
 		log.Fatal("Failed to check if plans table exists:", err)
 	}
 
-	if tableExists {
+	if tableName != "" {
 		log.Printf("Dropping existing plans table")
 		_, err = sqliteDB.Exec(`DROP TABLE plans`)
 		if err != nil {
