@@ -26,6 +26,9 @@ WORKDIR /app
 # Устанавливаем необходимые пакеты для работы SQLite
 RUN apk --no-cache add ca-certificates sqlite
 
+# Создаем директорию для данных
+RUN mkdir -p /app/data
+
 # Копируем собранное приложение из этапа сборки
 COPY --from=builder /app/main .
 COPY --from=builder /app/static ./static

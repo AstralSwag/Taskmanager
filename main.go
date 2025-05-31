@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -330,12 +331,15 @@ func main() {
 	}
 
 	// Создаем директорию для данных если её нет
-	if err := os.MkdirAll("data", 0755); err != nil {
+	dataDir := "/app/data"
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
 		log.Fatal("Failed to create data directory:", err)
 	}
 
 	// Подключаемся к SQLite
-	sqliteDB, err := sql.Open("sqlite3", "./data/astralswag.db")
+	dbPath := filepath.Join(dataDir, "astralswag.db")
+	log.Printf("Connecting to SQLite database at: %s", dbPath)
+	sqliteDB, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		log.Fatal("Failed to open SQLite database:", err)
 	}
@@ -354,6 +358,7 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to create plans table:", err)
 	}
+	log.Printf("Successfully connected to SQLite database and created/verified plans table")
 
 	http.HandleFunc("/", indexHandler)
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
