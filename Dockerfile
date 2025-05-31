@@ -34,6 +34,10 @@ COPY --from=builder /app/main .
 COPY --from=builder /app/static ./static
 COPY --from=builder /app/templates ./templates
 COPY --from=builder /app/users.json ./users.json
+COPY --from=builder /app/init.sql ./init.sql
+
+# Инициализируем базу данных
+RUN sqlite3 /app/data/astralswag.db < /app/init.sql
 
 EXPOSE 8080
 

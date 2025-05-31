@@ -345,38 +345,7 @@ func main() {
 	}
 	defer sqliteDB.Close()
 
-	// Проверяем существование таблицы
-	var tableName string
-	err = sqliteDB.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='plans'").Scan(&tableName)
-	if err != nil && err != sql.ErrNoRows {
-		log.Fatal("Failed to check if plans table exists:", err)
-	}
-
-	if tableName != "" {
-		log.Printf("Dropping existing plans table")
-		_, err = sqliteDB.Exec(`DROP TABLE plans`)
-		if err != nil {
-			log.Fatal("Failed to drop plans table:", err)
-		}
-	}
-
-	// Создаем таблицу с новой структурой
-	log.Printf("Creating plans table with new structure")
-	createTableSQL := `
-		CREATE TABLE plans (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			user_id TEXT NOT NULL,
-			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-			content TEXT NOT NULL,
-			UNIQUE(user_id)
-		)
-	`
-	_, err = sqliteDB.Exec(createTableSQL)
-	if err != nil {
-		log.Fatal("Failed to create plans table:", err)
-	}
-
-	// Проверяем структуру созданной таблицы
+	// Проверяем структуру таблицы
 	rows, err := sqliteDB.Query("PRAGMA table_info(plans)")
 	if err != nil {
 		log.Fatal("Failed to get table info:", err)
@@ -395,7 +364,7 @@ func main() {
 		log.Printf("Column: %s, Type: %s, NotNull: %d, PK: %d", name, type_, notnull, pk)
 	}
 
-	log.Printf("Successfully created plans table with correct structure")
+	log.Printf("Successfully connected to SQLite database")
 
 	http.HandleFunc("/", indexHandler)
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
