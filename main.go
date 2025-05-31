@@ -371,8 +371,10 @@ func main() {
 			return
 		}
 
+		log.Printf("Saving plan for user %s", currentUserID)
+
 		// Используем UPSERT для обновления или вставки плана пользователя
-		_, err := sqliteDB.Exec(`
+		result, err := sqliteDB.Exec(`
 			INSERT INTO plans (user_id, content) 
 			VALUES (?, ?) 
 			ON CONFLICT(user_id) DO UPDATE SET 
@@ -381,9 +383,16 @@ func main() {
 		`, currentUserID, content)
 
 		if err != nil {
-			log.Printf("Failed to save plan: %v", err)
+			log.Printf("Failed to save plan for user %s: %v", currentUserID, err)
 			http.Error(w, "Failed to save plan", http.StatusInternalServerError)
 			return
+		}
+
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			log.Printf("Failed to get rows affected: %v", err)
+		} else {
+			log.Printf("Plan saved for user %s, rows affected: %d", currentUserID, rowsAffected)
 		}
 
 		w.WriteHeader(http.StatusOK)
@@ -391,6 +400,8 @@ func main() {
 
 	// Добавляем обработчик для получения плана
 	http.HandleFunc("/get-plan", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("Getting plan for user %s", currentUserID)
+
 		var content string
 		err := sqliteDB.QueryRow(`
 			SELECT content 
@@ -402,11 +413,12 @@ func main() {
 
 		if err != nil {
 			if err == sql.ErrNoRows {
+				log.Printf("No plan found for user %s", currentUserID)
 				w.Header().Set("Content-Type", "application/json")
 				w.Write([]byte(`{"content": ""}`))
 				return
 			}
-			log.Printf("Error getting plan: %v", err)
+			log.Printf("Error getting plan for user %s: %v", currentUserID, err)
 			http.Error(w, "Failed to get plan", http.StatusInternalServerError)
 			return
 		}
@@ -424,7 +436,7 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		jsonData, err := json.Marshal(response)
 		if err != nil {
-			log.Printf("Error marshaling JSON: %v", err)
+			log.Printf("Error marshaling JSON for user %s: %v", currentUserID, err)
 			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 			return
 		}
@@ -434,17 +446,27 @@ func main() {
 
 	// Добавляем обработчик для получения новых задач
 	http.HandleFunc("/get-new-tasks", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("Getting new tasks for user %s", currentUserID)
+
 		// Получаем дату последнего сохраненного плана
 		var lastPlanDate time.Time
-		err := sqliteDB.QueryRow("SELECT created_at FROM plans ORDER BY created_at DESC LIMIT 1").Scan(&lastPlanDate)
+		err := sqliteDB.QueryRow(`
+			SELECT created_at 
+			FROM plans 
+			WHERE user_id = ? 
+			ORDER BY created_at DESC 
+			LIMIT 1
+		`, currentUserID).Scan(&lastPlanDate)
+
 		if err != nil {
 			if err == sql.ErrNoRows {
-				w.Header().Set("Content-Type", "application/json")
-				w.Write([]byte(`[]`))
+				log.Printf("No plan found for user %s, using current time", currentUserID)
+				lastPlanDate = time.Now()
+			} else {
+				log.Printf("Error getting last plan date for user %s: %v", currentUserID, err)
+				http.Error(w, "Failed to get last plan date", http.StatusInternalServerError)
 				return
 			}
-			http.Error(w, "Failed to get last plan date", http.StatusInternalServerError)
-			return
 		}
 
 		// Получаем новые задачи из PostgreSQL
