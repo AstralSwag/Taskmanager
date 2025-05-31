@@ -356,12 +356,14 @@ func main() {
 	for rows.Next() {
 		var cid int
 		var name, type_ string
-		var notnull, dflt_value int
+		var notnull int
+		var dflt_value sql.NullString
 		var pk int
 		if err := rows.Scan(&cid, &name, &type_, &notnull, &dflt_value, &pk); err != nil {
 			log.Fatal("Failed to scan table info:", err)
 		}
-		log.Printf("Column: %s, Type: %s, NotNull: %d, PK: %d", name, type_, notnull, pk)
+		log.Printf("Column: %s, Type: %s, NotNull: %d, Default: %v, PK: %d",
+			name, type_, notnull, dflt_value.String, pk)
 	}
 
 	log.Printf("Successfully connected to SQLite database")
