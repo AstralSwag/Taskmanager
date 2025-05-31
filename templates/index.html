@@ -65,9 +65,9 @@
     </div>
     <div class="container mt-5">
         <h1 class="text-center mb-4">Александр навайбкодил</h1>
-        <div class="user-selector mb-4">
-            <form method="POST" class="d-flex align-items-center justify-content-center">
-                <select name="user_id" class="form-select" style="width: auto;" onchange="this.form.submit()">
+        <div class="user-selector">
+            <form method="POST" action="/" id="userForm">
+                <select name="user_id" onchange="this.form.submit(); saveSelectedUser(this.value);">
                     {{range $id, $name := .Users}}
                     <option value="{{$id}}" {{if eq $id $.CurrentUserID}}selected{{end}}>{{$name}}</option>
                     {{end}}
@@ -608,6 +608,29 @@
                 console.error('Failed to copy: ', err);
             });
         }
+
+        // Функция для сохранения выбранного пользователя
+        function saveSelectedUser(userId) {
+            localStorage.setItem('selectedUserId', userId);
+        }
+
+        // Функция для восстановления выбранного пользователя
+        function restoreSelectedUser() {
+            const savedUserId = localStorage.getItem('selectedUserId');
+            if (savedUserId) {
+                const select = document.querySelector('select[name="user_id"]');
+                if (select) {
+                    select.value = savedUserId;
+                    // Если текущий пользователь отличается от сохраненного, отправляем форму
+                    if (select.value !== '{{.CurrentUserID}}') {
+                        select.form.submit();
+                    }
+                }
+            }
+        }
+
+        // Вызываем восстановление при загрузке страницы
+        document.addEventListener('DOMContentLoaded', restoreSelectedUser);
     </script>
 </body>
 </html> 
