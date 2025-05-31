@@ -345,8 +345,10 @@ func main() {
 	_, err = sqliteDB.Exec(`
 		CREATE TABLE IF NOT EXISTS plans (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id TEXT NOT NULL,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-			content TEXT NOT NULL
+			content TEXT NOT NULL,
+			UNIQUE(user_id)
 		)
 	`)
 	if err != nil {
@@ -369,31 +371,17 @@ func main() {
 			return
 		}
 
-		// Удаляем все существующие планы
-		_, err := sqliteDB.Exec("DELETE FROM plans")
-		if err != nil {
-			log.Printf("Failed to delete existing plans: %v", err)
-			http.Error(w, "Failed to save plan", http.StatusInternalServerError)
-			return
-		}
+		// Используем UPSERT для обновления или вставки плана пользователя
+		_, err := sqliteDB.Exec(`
+			INSERT INTO plans (user_id, content) 
+			VALUES (?, ?) 
+			ON CONFLICT(user_id) DO UPDATE SET 
+				content = excluded.content,
+				created_at = CURRENT_TIMESTAMP
+		`, currentUserID, content)
 
-		// Вставляем новый план
-		result, err := sqliteDB.Exec("INSERT INTO plans (content) VALUES (?)", content)
 		if err != nil {
 			log.Printf("Failed to save plan: %v", err)
-			http.Error(w, "Failed to save plan", http.StatusInternalServerError)
-			return
-		}
-
-		rowsAffected, err := result.RowsAffected()
-		if err != nil {
-			log.Printf("Failed to get rows affected: %v", err)
-			http.Error(w, "Failed to save plan", http.StatusInternalServerError)
-			return
-		}
-
-		if rowsAffected == 0 {
-			log.Printf("No rows were affected when saving plan")
 			http.Error(w, "Failed to save plan", http.StatusInternalServerError)
 			return
 		}
@@ -404,7 +392,14 @@ func main() {
 	// Добавляем обработчик для получения плана
 	http.HandleFunc("/get-plan", func(w http.ResponseWriter, r *http.Request) {
 		var content string
-		err := sqliteDB.QueryRow("SELECT content FROM plans ORDER BY created_at DESC LIMIT 1").Scan(&content)
+		err := sqliteDB.QueryRow(`
+			SELECT content 
+			FROM plans 
+			WHERE user_id = ? 
+			ORDER BY created_at DESC 
+			LIMIT 1
+		`, currentUserID).Scan(&content)
+
 		if err != nil {
 			if err == sql.ErrNoRows {
 				w.Header().Set("Content-Type", "application/json")
@@ -417,7 +412,7 @@ func main() {
 		}
 
 		// Добавляем логирование
-		log.Printf("Raw plan content from DB: %s", content)
+		log.Printf("Raw plan content from DB for user %s: %s", currentUserID, content)
 
 		// Создаем структуру для JSON
 		type PlanResponse struct {
@@ -433,7 +428,7 @@ func main() {
 			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 			return
 		}
-		log.Printf("Sending JSON response: %s", string(jsonData))
+		log.Printf("Sending JSON response for user %s: %s", currentUserID, string(jsonData))
 		w.Write(jsonData)
 	})
 
