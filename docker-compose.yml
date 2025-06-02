@@ -33,6 +33,7 @@ services:
       REPLICATOR_PASSWORD: ${REPLICATOR_PASSWORD}
     volumes:
       - ./init-scripts:/docker-entrypoint-initdb.d
+      - /opt/planfact/Taskmanager/data/chain.pem:/etc/ssl/postgresql/root.crt
     command: postgres -c wal_level=logical
     restart: unless-stopped
     ports:
