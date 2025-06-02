@@ -60,5 +60,5 @@ services:
 networks:
   app-network:
     driver: bridge
-  traefic-net:
+  traefik-net:
     external: true
