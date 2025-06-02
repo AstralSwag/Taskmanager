@@ -52,7 +52,7 @@ until pg_isready; do
 done
 
 # Формирование строки подключения
-CONN_STR="host=${DB_HOST} port=${DB_PORT} user=${POSTGRES_USER} password=${DB_PASSWORD} dbname=plane"
+CONN_STR="host=${DB_HOST} port=${DB_PORT} user=${POSTGRES_USER} password=${DB_PASSWORD} dbname=plane sslmode=require sslrootcert=/etc/ssl/postgresql/root.crt"
 
 # Создание подписки
 PGPASSWORD="$DB_PASSWORD" psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d replicator <<EOF
