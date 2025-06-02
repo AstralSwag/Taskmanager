@@ -32,19 +32,33 @@ services:
       PLANE_DB: ${PLANE_DB}
       REPLICATOR_USER: ${REPLICATOR_USER}
       REPLICATOR_PASSWORD: ${REPLICATOR_PASSWORD}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik-net"
+      - "traefik.http.routers.planfact.rule=Host(`planfact.astralswag.ru`)"
+      - "traefik.http.routers.planfact.entrypoints=websecure"
+      - "traefik.http.routers.planfact.tls=true"
+      - "traefik.http.services.planfact.loadbalancer.server.port=8080"
+      # Basic Auth middleware
+      - "traefik.http.routers.planfact.middlewares=planfact-auth"
+      - "traefik.http.middlewares.planfact-auth.basicauth.users=${HTTP_BASIC_AUTH}"
+      - "traefik.http.middlewares.planfact-auth.basicauth.removeheader=true"    
     volumes:
       - ./init-scripts:/docker-entrypoint-initdb.d
       - /opt/planfact/Taskmanager/data/chain.pem:/etc/ssl/postgresql/root.crt
     command: postgres -c wal_level=logical
     extra_hosts:
-      - "n8n.it4retail.tech:${PLANE_HOST}"
+      - "n8n.it4retail.tech:188.225.81.231"
     restart: unless-stopped
     ports:
       - "${REPLICA_PORT}:5432"
     user: postgres
     networks:
       - app-network
+      - traefik-net
 
 networks:
   app-network:
     driver: bridge
+  traefic-net:
+    external: true
