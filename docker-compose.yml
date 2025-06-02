@@ -19,6 +19,7 @@ services:
       - "8080:8080"
     networks:
       - app-network
+      
 
   postgres:
     image: postgres:15
@@ -35,6 +36,8 @@ services:
       - ./init-scripts:/docker-entrypoint-initdb.d
       - /opt/planfact/Taskmanager/data/chain.pem:/etc/ssl/postgresql/root.crt
     command: postgres -c wal_level=logical
+    extra_hosts:
+      - "n8n.it4retail.tech:${PLANE_HOST}"
     restart: unless-stopped
     ports:
       - "${REPLICA_PORT}:5432"
