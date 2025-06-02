@@ -36,7 +36,7 @@ else
   fi
 
   # Создаём подписку
-  CONN_STR="host=$PLANE_HOST port=$PLANE_PORT user=$REPLICATOR_USER password=$REPLICATOR_PASSWORD dbname=$PLANE_DB"
+  CONN_STR="host=$PLANE_HOST port=$PLANE_PORT user=$REPLICATOR_USER password=$REPLICATOR_PASSWORD dbname=$PLANE_DB sslmode=require sslrootcert=/etc/ssl/postgresql/root.crt"
 
   echo "Creating subscription 'site_sub'..."
   PGPASSWORD="$REPLICATOR_PASSWORD" psql -U "$REPLICATOR_USER" -d "$POSTGRES_DB" -c "
