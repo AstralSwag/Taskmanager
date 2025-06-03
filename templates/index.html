@@ -8,7 +8,6 @@
     <link href="/static/css/style.css" rel="stylesheet">
 </head>
 <body>
-    <pre>{{printf "%#v" .}}</pre>
     <div class="floating-counter" style="display: none;">
         <div class="counter-content">
             <span class="counter-label">Total estimates:</span>
@@ -65,9 +64,11 @@
         </div>
     </div>
     <div class="container mt-5">
-        <div class="quote-container text-center mb-4">
-            <h1 class="quote-text">{{.Quote.Text}}</h1>
-            <p class="quote-author">— {{.Quote.Author}}</p>
+        <div class="quote-container text-center mb-5">
+            <div class="quote-wrapper">
+                <h1 class="quote-text">"{{.Quote.Text}}"</h1>
+                <p class="quote-author">— {{.Quote.Author}}</p>
+            </div>
         </div>
         <div class="user-selector">
             <form method="POST" action="/" id="userForm">
