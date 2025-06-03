@@ -9,9 +9,9 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -258,8 +258,16 @@ func getIssues() ([]Issue, error) {
 
 func getQuote() (Quote, error) {
 	log.Printf("Getting quote from API...")
-	resp, err := http.Post("http://api.forismatic.com/api/1.0/", "application/x-www-form-urlencoded",
-		strings.NewReader("method=getQuote&format=xml&lang=ru"))
+
+	// Создаем URL с параметрами
+	apiURL := "http://api.forismatic.com/api/1.0/"
+	formData := url.Values{}
+	formData.Set("method", "getQuote")
+	formData.Set("format", "xml")
+	formData.Set("lang", "ru")
+
+	// Отправляем POST запрос
+	resp, err := http.PostForm(apiURL, formData)
 	if err != nil {
 		log.Printf("Error making request to API: %v", err)
 		return Quote{}, err
@@ -457,7 +465,41 @@ func main() {
 
 	log.Printf("Successfully connected to SQLite database")
 
-	startQuoteScheduler()
+	// Инициализируем первую цитату
+	quote, err := getQuote()
+	if err != nil {
+		log.Printf("Error getting initial quote: %v", err)
+		// Устанавливаем дефолтную цитату в случае ошибки
+		currentQuote = Quote{
+			Text:   "Александр навайбкодил",
+			Author: "Система",
+		}
+	} else {
+		currentQuote = quote
+	}
+
+	// Запускаем планировщик обновления цитаты
+	go func() {
+		for {
+			now := time.Now()
+			next := time.Date(now.Year(), now.Month(), now.Day(), 4, 0, 0, 0, now.Location())
+			if now.After(next) {
+				next = next.Add(24 * time.Hour)
+			}
+			time.Sleep(next.Sub(now))
+
+			quote, err := getQuote()
+			if err != nil {
+				log.Printf("Error updating quote: %v", err)
+				continue
+			}
+
+			quoteMutex.Lock()
+			currentQuote = quote
+			quoteMutex.Unlock()
+			log.Printf("Quote updated successfully: %+v", quote)
+		}
+	}()
 
 	http.HandleFunc("/", indexHandler)
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
