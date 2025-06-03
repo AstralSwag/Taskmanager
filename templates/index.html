@@ -10,7 +10,7 @@
 <body>
     <div class="floating-counter" style="display: none;">
         <div class="counter-content">
-            <span class="counter-label">Total estimates:</span>
+            <span class="counter-label">Всего estimates:</span>
             <span class="counter-value">0</span>
         </div>
     </div>
@@ -22,7 +22,7 @@
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Add Comments</h5>
+                    <h5 class="modal-title">Добавить комментарии</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
@@ -31,8 +31,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" onclick="generatePlan()">Generate Plan</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="btn btn-primary" onclick="generatePlan()">Создать план</button>
                 </div>
             </div>
         </div>
@@ -41,7 +41,7 @@
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Plan</h5>
+                    <h5 class="modal-title">План</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
@@ -50,8 +50,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-primary" onclick="copyPlan()">Copy to clipboard</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                    <button type="button" class="btn btn-primary" onclick="copyPlan()">Копировать в буфер обмена</button>
                 </div>
             </div>
         </div>
@@ -121,8 +121,8 @@
                         <div class="description-container">
                             <p class="description">{{.Description}}</p>
                             <button class="btn btn-link btn-sm toggle-description" onclick="toggleDescription(this)">
-                                <span class="show-more">Show more</span>
-                                <span class="show-less" style="display: none">Show less</span>
+                                <span class="show-more">Показать больше</span>
+                                <span class="show-less" style="display: none">Скрыть</span>
                             </button>
                         </div>
                         <div class="issue-details">
@@ -270,7 +270,7 @@
         function showCommentsModal() {
             const checkboxes = document.querySelectorAll('.issue-checkbox input[type="checkbox"]:checked');
             if (checkboxes.length === 0) {
-                alert('Please select at least one task');
+                alert('Пожалуйста, выберите хотя бы одну задачу');
                 return;
             }
 
@@ -289,7 +289,7 @@
                         <h6>${id} - ${name}</h6>
                     </div>
                     <div class="comment-input">
-                        <textarea class="form-control" id="comment-${index}" rows="2" placeholder="Add comment..."></textarea>
+                        <textarea class="form-control" id="comment-${index}" rows="2" placeholder="Добавить комментарий..."></textarea>
                     </div>
                 `;
                 container.appendChild(commentGroup);
@@ -334,8 +334,19 @@
                 },
                 body: `content=${encodeURIComponent(table)}`
             })
+            .then(response => response.json())
+            .then(data => {
+                if (data.content) {
+                    document.getElementById('myPlanContent').innerHTML = formatPlanContent(data.content);
+                    const modal = new bootstrap.Modal(document.getElementById('myPlanModal'));
+                    modal.show();
+                } else {
+                    alert('План не найден');
+                }
+            })
             .catch(error => {
-                console.error('Error saving plan:', error);
+                console.error('Ошибка при сохранении плана:', error);
+                alert('Ошибка при загрузке плана');
             });
             
             // Закрываем модальное окно с комментариями
@@ -358,7 +369,7 @@
                 const modal = bootstrap.Modal.getInstance(document.getElementById('planModal'));
                 modal.hide();
             }).catch(err => {
-                console.error('Failed to copy: ', err);
+                console.error('Ошибка при копировании:', err);
             });
         }
 
@@ -412,7 +423,7 @@
             const lines = content.split('\n');
             let html = '';
             
-            // Пропускаем первые три строки (заголовок с total estimates и заголовок таблицы)
+            // Пропускаем первые три строки (заголовок с общим количеством estimates и заголовок таблицы)
             for (let i = 3; i < lines.length; i++) {
                 // Пропускаем строки с разделителями таблицы
                 if (lines[i].startsWith('|') && !lines[i].includes('---')) {
@@ -449,9 +460,9 @@
             fetch('/get-plan')
                 .then(response => response.json())
                 .then(data => {
-                    console.log('Received plan data:', data);
+                    console.log('Получены данные плана:', data);
                     if (!data || !data.content) {
-                        console.error('Invalid plan data received:', data);
+                        console.error('Получены некорректные данные плана:', data);
                         alert('План не найден или имеет неверный формат');
                         return;
                     }
@@ -462,26 +473,27 @@
                         .then(newTasks => {
                             console.log('Received new tasks:', newTasks);
                             const formattedContent = formatFactContent(data.content, newTasks);
-                            console.log('Formatted content:', formattedContent);
+                            console.log('Форматирование содержимого:', data.content);
+                            console.log('Сгенерирован HTML:', formattedContent);
                             document.getElementById('factContent').innerHTML = formattedContent;
                             const modal = new bootstrap.Modal(document.getElementById('factModal'));
                             modal.show();
                         })
                         .catch(error => {
-                            console.error('Error loading new tasks:', error);
+                            console.error('Ошибка при загрузке новых задач:', error);
                             alert('Ошибка при загрузке новых задач');
                         });
                 })
                 .catch(error => {
-                    console.error('Error loading plan:', error);
+                    console.error('Ошибка при загрузке плана:', error);
                     alert('Ошибка при загрузке плана');
                 });
         }
 
         function formatFactContent(planContent, newTasks) {
-            console.log('Formatting content:', planContent);
+            console.log('Форматирование содержимого:', planContent);
             if (!planContent) {
-                console.error('Empty plan content');
+                console.error('Пустое содержимое плана');
                 return '';
             }
 
@@ -535,7 +547,7 @@
                                 </div>
                             </div>
                         `;
-                        console.log('Added task to HTML:', id);
+                        console.log('Добавлена задача в HTML:', id);
                     }
                 }
             }
@@ -562,7 +574,7 @@
                 });
             }
             
-            console.log('Generated HTML:', html);
+            console.log('Сгенерирован HTML:', html);
             return html;
         }
 
@@ -610,7 +622,7 @@
                 const factModal = bootstrap.Modal.getInstance(document.getElementById('factModal'));
                 factModal.hide();
             }).catch(err => {
-                console.error('Failed to copy: ', err);
+                console.error('Ошибка при копировании:', err);
             });
         }
 
