@@ -64,7 +64,10 @@
         </div>
     </div>
     <div class="container mt-5">
-        <h1 class="text-center mb-4">Александр навайбкодил</h1>
+        <div class="quote-container text-center mb-4">
+            <h1 class="quote-text">{{.Quote.Text}}</h1>
+            <p class="quote-author">— {{.Quote.Author}}</p>
+        </div>
         <div class="user-selector">
             <form method="POST" action="/" id="userForm">
                 <select name="user_id" onchange="this.form.submit(); saveSelectedUser(this.value);">

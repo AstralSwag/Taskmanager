@@ -3,12 +3,16 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"encoding/xml"
 	"fmt"
 	"html/template"
+	"io"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -60,9 +64,16 @@ type User struct {
 	Name string
 }
 
+type Quote struct {
+	Text   string
+	Author string
+}
+
 var db *sql.DB
 var users map[string]string
 var currentUserID string
+var currentQuote Quote
+var quoteMutex sync.RWMutex
 
 func initDB() {
 	var err error
@@ -245,6 +256,66 @@ func getIssues() ([]Issue, error) {
 	return issues, nil
 }
 
+func getQuote() (Quote, error) {
+	resp, err := http.Post("http://api.forismatic.com/api/1.0/", "application/x-www-form-urlencoded",
+		strings.NewReader("method=getQuote&format=xml&lang=ru"))
+	if err != nil {
+		return Quote{}, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return Quote{}, err
+	}
+
+	var result struct {
+		Quote struct {
+			Text   string `xml:"quoteText"`
+			Author string `xml:"quoteAuthor"`
+		} `xml:"quote"`
+	}
+
+	if err := xml.Unmarshal(body, &result); err != nil {
+		return Quote{}, err
+	}
+
+	return Quote{
+		Text:   result.Quote.Text,
+		Author: result.Quote.Author,
+	}, nil
+}
+
+func updateQuote() {
+	quote, err := getQuote()
+	if err != nil {
+		log.Printf("Error getting quote: %v", err)
+		return
+	}
+
+	quoteMutex.Lock()
+	currentQuote = quote
+	quoteMutex.Unlock()
+}
+
+func startQuoteScheduler() {
+	// Обновляем цитату при запуске
+	updateQuote()
+
+	// Запускаем горутину для обновления цитаты каждый день в 4:00 AM
+	go func() {
+		for {
+			now := time.Now()
+			next := time.Date(now.Year(), now.Month(), now.Day(), 4, 0, 0, 0, now.Location())
+			if now.After(next) {
+				next = next.Add(24 * time.Hour)
+			}
+			time.Sleep(next.Sub(now))
+			updateQuote()
+		}
+	}()
+}
+
 func indexHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
 		if err := r.ParseForm(); err != nil {
@@ -264,6 +335,10 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	quoteMutex.RLock()
+	quote := currentQuote
+	quoteMutex.RUnlock()
+
 	funcMap := template.FuncMap{
 		"timeSince": timeSince,
 	}
@@ -279,12 +354,14 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		Issues        []Issue
 		Users         map[string]string
 		CurrentUserID string
+		Quote         Quote
 	}
 
 	data := PageData{
 		Issues:        issues,
 		Users:         users,
 		CurrentUserID: currentUserID,
+		Quote:         quote,
 	}
 
 	if err := tmpl.Execute(w, data); err != nil {
@@ -367,6 +444,8 @@ func main() {
 	}
 
 	log.Printf("Successfully connected to SQLite database")
+
+	startQuoteScheduler()
 
 	http.HandleFunc("/", indexHandler)
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
