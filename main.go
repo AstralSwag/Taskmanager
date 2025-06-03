@@ -265,6 +265,7 @@ func getQuote() (Quote, error) {
 	formData.Set("method", "getQuote")
 	formData.Set("format", "xml")
 	formData.Set("lang", "ru")
+	formData.Set("key", "1") // Добавляем ключ для API
 
 	// Отправляем POST запрос
 	resp, err := http.PostForm(apiURL, formData)
@@ -479,27 +480,7 @@ func main() {
 	}
 
 	// Запускаем планировщик обновления цитаты
-	go func() {
-		for {
-			now := time.Now()
-			next := time.Date(now.Year(), now.Month(), now.Day(), 4, 0, 0, 0, now.Location())
-			if now.After(next) {
-				next = next.Add(24 * time.Hour)
-			}
-			time.Sleep(next.Sub(now))
-
-			quote, err := getQuote()
-			if err != nil {
-				log.Printf("Error updating quote: %v", err)
-				continue
-			}
-
-			quoteMutex.Lock()
-			currentQuote = quote
-			quoteMutex.Unlock()
-			log.Printf("Quote updated successfully: %+v", quote)
-		}
-	}()
+	startQuoteScheduler()
 
 	http.HandleFunc("/", indexHandler)
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
