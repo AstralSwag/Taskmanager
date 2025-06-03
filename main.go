@@ -257,17 +257,22 @@ func getIssues() ([]Issue, error) {
 }
 
 func getQuote() (Quote, error) {
+	log.Printf("Getting quote from API...")
 	resp, err := http.Post("http://api.forismatic.com/api/1.0/", "application/x-www-form-urlencoded",
 		strings.NewReader("method=getQuote&format=xml&lang=ru"))
 	if err != nil {
+		log.Printf("Error making request to API: %v", err)
 		return Quote{}, err
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		log.Printf("Error reading response body: %v", err)
 		return Quote{}, err
 	}
+
+	log.Printf("Received response from API: %s", string(body))
 
 	var result struct {
 		Quote struct {
@@ -277,16 +282,20 @@ func getQuote() (Quote, error) {
 	}
 
 	if err := xml.Unmarshal(body, &result); err != nil {
+		log.Printf("Error unmarshaling XML: %v", err)
 		return Quote{}, err
 	}
 
-	return Quote{
+	quote := Quote{
 		Text:   result.Quote.Text,
 		Author: result.Quote.Author,
-	}, nil
+	}
+	log.Printf("Successfully parsed quote: %+v", quote)
+	return quote, nil
 }
 
 func updateQuote() {
+	log.Printf("Updating quote...")
 	quote, err := getQuote()
 	if err != nil {
 		log.Printf("Error getting quote: %v", err)
@@ -296,6 +305,7 @@ func updateQuote() {
 	quoteMutex.Lock()
 	currentQuote = quote
 	quoteMutex.Unlock()
+	log.Printf("Quote updated successfully: %+v", quote)
 }
 
 func startQuoteScheduler() {
@@ -338,6 +348,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	quoteMutex.RLock()
 	quote := currentQuote
 	quoteMutex.RUnlock()
+	log.Printf("Current quote in indexHandler: %+v", quote)
 
 	funcMap := template.FuncMap{
 		"timeSince": timeSince,
@@ -363,6 +374,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 		CurrentUserID: currentUserID,
 		Quote:         quote,
 	}
+	log.Printf("PageData being sent to template: %+v", data)
 
 	if err := tmpl.Execute(w, data); err != nil {
 		log.Printf("Template execution error: %v", err)
