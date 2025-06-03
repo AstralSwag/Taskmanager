@@ -335,27 +335,49 @@ body {
     margin: 0;
 }
 
-.floating-button {
+.floating-buttons {
     position: fixed;
     bottom: 20px;
     right: 20px;
+    display: flex;
+    gap: 10px;
+    z-index: 1000;
+}
+
+.floating-button {
     background: #0d6efd;
     color: white;
     border: none;
     border-radius: 50px;
-    padding: 12px 24px;
-    font-size: 1rem;
-    font-weight: 500;
+    padding: 15px 30px;
+    font-size: 1.2rem;
+    font-weight: 600;
     cursor: pointer;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
     transition: all 0.3s ease;
-    z-index: 1000;
+    text-transform: uppercase;
+    min-width: 120px;
 }
 
 .floating-button:hover {
-    background: #0b5ed7;
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.fact-button {
+    background: #28a745;
+}
+
+.fact-button:hover {
+    background: #218838;
+}
+
+.plan-button {
+    background: #0d6efd;
+}
+
+.plan-button:hover {
+    background: #0b5ed7;
 }
 
 .table-container {
@@ -552,26 +574,6 @@ body {
     border-color: #0d6efd;
     box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
     outline: none;
-}
-
-.fact-button {
-    position: fixed;
-    top: 20px;
-    right: 200px;
-    background: #28a745;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    padding: 6px 12px;
-    font-size: 0.9rem;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    z-index: 1000;
-}
-
-.fact-button:hover {
-    background: #218838;
-    transform: translateY(-1px);
 }
 
 .new-tasks-divider {
