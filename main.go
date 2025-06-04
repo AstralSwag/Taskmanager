@@ -126,6 +126,10 @@ func initDB() {
 		// Test the connection
 		if err = db.Ping(); err == nil {
 			log.Printf("Successfully connected to database")
+			// Initialize attendance table
+			if err := initAttendanceTable(); err != nil {
+				log.Printf("Error initializing attendance table: %v", err)
+			}
 			return
 		}
 
@@ -447,7 +451,7 @@ func getAttendanceStatus(date string) ([]AttendanceStatus, error) {
 	query := `
 		SELECT user_id, date, is_office, updated_at
 		FROM attendance
-		WHERE date = ?
+		WHERE date = $1
 	`
 	rows, err := db.Query(query, date)
 	if err != nil {
@@ -470,10 +474,10 @@ func getAttendanceStatus(date string) ([]AttendanceStatus, error) {
 func updateAttendanceStatus(userID, date string, isOffice bool) error {
 	query := `
 		INSERT INTO attendance (user_id, date, is_office, updated_at)
-		VALUES (?, ?, ?, ?)
+		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (user_id, date) DO UPDATE SET
-			is_office = excluded.is_office,
-			updated_at = excluded.updated_at
+			is_office = EXCLUDED.is_office,
+			updated_at = EXCLUDED.updated_at
 	`
 	_, err := db.Exec(query, userID, date, isOffice, time.Now())
 	return err
@@ -500,28 +504,10 @@ func main() {
 	}
 	defer sqliteDB.Close()
 
-	// Проверяем структуру таблицы
-	rows, err := sqliteDB.Query("PRAGMA table_info(plans)")
-	if err != nil {
-		log.Fatal("Failed to get table info:", err)
+	// Initialize attendance table
+	if err := initAttendanceTable(); err != nil {
+		log.Fatalf("Error initializing attendance table: %v", err)
 	}
-	defer rows.Close()
-
-	log.Printf("Table structure:")
-	for rows.Next() {
-		var cid int
-		var name, type_ string
-		var notnull int
-		var dflt_value sql.NullString
-		var pk int
-		if err := rows.Scan(&cid, &name, &type_, &notnull, &dflt_value, &pk); err != nil {
-			log.Fatal("Failed to scan table info:", err)
-		}
-		log.Printf("Column: %s, Type: %s, NotNull: %d, Default: %v, PK: %d",
-			name, type_, notnull, dflt_value.String, pk)
-	}
-
-	log.Printf("Successfully connected to SQLite database")
 
 	// Инициализируем первую цитату
 	quote, err := getQuote()
@@ -539,13 +525,34 @@ func main() {
 	// Запускаем планировщик обновления цитаты
 	startQuoteScheduler()
 
-	// Initialize attendance table
-	if err := initAttendanceTable(); err != nil {
-		log.Fatalf("Error initializing attendance table: %v", err)
-	}
-
-	http.HandleFunc("/", indexHandler)
-	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+	// Add new routes for attendance
+	http.HandleFunc("/api/attendance", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodGet {
+			tomorrow := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
+			statuses, err := getAttendanceStatus(tomorrow)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			json.NewEncoder(w).Encode(statuses)
+		} else if r.Method == http.MethodPost {
+			var data struct {
+				UserID   string `json:"user_id"`
+				IsOffice bool   `json:"is_office"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			tomorrow := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
+			if err := updateAttendanceStatus(data.UserID, tomorrow, data.IsOffice); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+		}
+	})
 
 	// Добавляем новый обработчик для сохранения плана
 	http.HandleFunc("/save-plan", func(w http.ResponseWriter, r *http.Request) {
@@ -734,33 +741,8 @@ func main() {
 		json.NewEncoder(w).Encode(newTasks)
 	})
 
-	// Add new routes for attendance
-	http.HandleFunc("/api/attendance", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet {
-			tomorrow := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
-			statuses, err := getAttendanceStatus(tomorrow)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			json.NewEncoder(w).Encode(statuses)
-		} else if r.Method == http.MethodPost {
-			var data struct {
-				UserID   string `json:"user_id"`
-				IsOffice bool   `json:"is_office"`
-			}
-			if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-			tomorrow := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
-			if err := updateAttendanceStatus(data.UserID, tomorrow, data.IsOffice); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			w.WriteHeader(http.StatusOK)
-		}
-	})
+	http.HandleFunc("/", indexHandler)
+	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 
 	log.Println("Server starting on :8080...")
 	log.Fatal(http.ListenAndServe(":8080", nil))
