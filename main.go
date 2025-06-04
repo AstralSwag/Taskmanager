@@ -544,6 +544,10 @@ func main() {
 			}
 
 			log.Printf("Found %d attendance records", len(statuses))
+			// Всегда возвращаем массив, даже если он пустой
+			if statuses == nil {
+				statuses = []AttendanceStatus{}
+			}
 			jsonData, err := json.Marshal(statuses)
 			if err != nil {
 				log.Printf("Error marshaling JSON: %v", err)
@@ -554,11 +558,6 @@ func main() {
 			w.Write(jsonData)
 
 		} else if r.Method == http.MethodPost {
-			var data struct {
-				UserID   string `json:"user_id"`
-				IsOffice bool   `json:"is_office"`
-			}
-
 			body, err := io.ReadAll(r.Body)
 			if err != nil {
 				log.Printf("Error reading request body: %v", err)
@@ -567,15 +566,20 @@ func main() {
 			}
 			log.Printf("Received POST data: %s", string(body))
 
+			var data struct {
+				UserID   string `json:"user_id"`
+				IsOffice bool   `json:"is_office"`
+			}
+
 			if err := json.Unmarshal(body, &data); err != nil {
-				log.Printf("Error unmarshaling JSON: %v", err)
+				log.Printf("Error parsing JSON: %v", err)
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
 
+			tomorrow := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
 			log.Printf("Updating attendance status for user %s: is_office=%v", data.UserID, data.IsOffice)
 
-			tomorrow := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
 			if err := updateAttendanceStatus(data.UserID, tomorrow, data.IsOffice); err != nil {
 				log.Printf("Error updating attendance status: %v", err)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -583,10 +587,8 @@ func main() {
 			}
 
 			log.Printf("Successfully updated attendance status")
-			w.WriteHeader(http.StatusOK)
-		} else {
-			log.Printf("Method not allowed: %s", r.Method)
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			// Возвращаем пустой объект в случае успеха
+			w.Write([]byte("{}"))
 		}
 	})
 
