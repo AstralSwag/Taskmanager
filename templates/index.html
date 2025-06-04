@@ -698,7 +698,12 @@
                     });
 
                     // Create a map of user statuses
-                    const statusMap = new Map(data.map(s => [s.user_id, s]));
+                    const statusMap = new Map();
+                    data.forEach(status => {
+                        if (status.UserID) {  // Проверяем наличие UserID
+                            statusMap.set(status.UserID, status);
+                        }
+                    });
                     console.log('Status map:', statusMap);
 
                     // Create rows for all users
@@ -711,14 +716,14 @@
                             statusText = 'Не указано';
                             statusClass = 'bg-warning';
                         } else {
-                            statusText = status.is_office ? 'В офисе' : 'Дома';
-                            statusClass = status.is_office ? 'bg-success' : 'bg-danger';
+                            statusText = status.IsOffice ? 'В офисе' : 'Дома';
+                            statusClass = status.IsOffice ? 'bg-success' : 'bg-danger';
                         }
 
                         row.innerHTML = `
                             <td>${userName}</td>
                             <td><span class="badge ${statusClass}">${statusText}</span></td>
-                            <td>${status ? new Date(status.updated_at).toLocaleString() : '-'}</td>
+                            <td>${status ? new Date(status.UpdatedAt).toLocaleString() : '-'}</td>
                         `;
                         tbody.appendChild(row);
                     });
@@ -728,7 +733,7 @@
                     const currentUserStatus = statusMap.get(currentUserId);
                     const toggle = document.getElementById('officeToggle');
                     if (currentUserStatus) {
-                        toggle.checked = currentUserStatus.is_office;
+                        toggle.checked = currentUserStatus.IsOffice;
                     } else {
                         toggle.checked = false;
                     }
