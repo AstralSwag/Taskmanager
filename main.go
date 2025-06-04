@@ -444,8 +444,14 @@ func initAttendanceTable() error {
 			PRIMARY KEY (user_id, date)
 		)
 	`
+	log.Printf("Creating attendance table with query: %s", query)
 	_, err := sqliteDB.Exec(query)
-	return err
+	if err != nil {
+		log.Printf("Error creating attendance table: %v", err)
+		return err
+	}
+	log.Printf("Attendance table created successfully")
+	return nil
 }
 
 func getAttendanceStatus(date string) ([]AttendanceStatus, error) {
@@ -454,8 +460,10 @@ func getAttendanceStatus(date string) ([]AttendanceStatus, error) {
 		FROM attendance
 		WHERE date = ?
 	`
+	log.Printf("Executing query: %s with date: %s", query, date)
 	rows, err := sqliteDB.Query(query, date)
 	if err != nil {
+		log.Printf("Error executing query: %v", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -465,9 +473,11 @@ func getAttendanceStatus(date string) ([]AttendanceStatus, error) {
 		var s AttendanceStatus
 		err := rows.Scan(&s.UserID, &s.Date, &s.IsOffice, &s.UpdatedAt)
 		if err != nil {
+			log.Printf("Error scanning row: %v", err)
 			return nil, err
 		}
 		statuses = append(statuses, s)
+		log.Printf("Found attendance record: %+v", s)
 	}
 	return statuses, nil
 }
@@ -480,8 +490,14 @@ func updateAttendanceStatus(userID, date string, isOffice bool) error {
 			is_office = excluded.is_office,
 			updated_at = excluded.updated_at
 	`
+	log.Printf("Executing update query: %s with values: user_id=%s, date=%s, is_office=%v", query, userID, date, isOffice)
 	_, err := sqliteDB.Exec(query, userID, date, isOffice, time.Now())
-	return err
+	if err != nil {
+		log.Printf("Error updating attendance status: %v", err)
+		return err
+	}
+	log.Printf("Successfully updated attendance status in database")
+	return nil
 }
 
 func main() {
