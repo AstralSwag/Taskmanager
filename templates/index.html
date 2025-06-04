@@ -759,22 +759,24 @@
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
-                return response.json();
-            })
-            .then(() => {
                 console.log('Successfully updated attendance status');
+                // Обновляем таблицу после успешного обновления статуса
                 updateAttendanceTable();
             })
             .catch(error => {
                 console.error('Error updating attendance status:', error);
-                checkbox.checked = !isOffice; // Revert checkbox state
+                // Возвращаем чекбокс в предыдущее состояние в случае ошибки
+                checkbox.checked = !isOffice;
                 alert('Ошибка при обновлении статуса посещаемости');
             });
         }
 
-        // Update table on page load and when user changes
-        document.addEventListener('DOMContentLoaded', updateAttendanceTable);
-        document.querySelector('select[name="user_id"]').addEventListener('change', updateAttendanceTable);
+        // Вызываем обновление таблицы при загрузке страницы
+        document.addEventListener('DOMContentLoaded', function() {
+            updateAttendanceTable();
+            // Обновляем таблицу каждые 30 секунд
+            setInterval(updateAttendanceTable, 30000);
+        });
     </script>
 </body>
 </html> 
