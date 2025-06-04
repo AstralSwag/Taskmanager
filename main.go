@@ -527,30 +527,59 @@ func main() {
 
 	// Add new routes for attendance
 	http.HandleFunc("/api/attendance", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("Received %s request to /api/attendance", r.Method)
+		log.Printf("Request headers: %v", r.Header)
+
 		w.Header().Set("Content-Type", "application/json")
+
 		if r.Method == http.MethodGet {
 			tomorrow := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
+			log.Printf("Getting attendance status for date: %s", tomorrow)
+
 			statuses, err := getAttendanceStatus(tomorrow)
 			if err != nil {
+				log.Printf("Error getting attendance status: %v", err)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
+
+			log.Printf("Found %d attendance records", len(statuses))
 			json.NewEncoder(w).Encode(statuses)
+
 		} else if r.Method == http.MethodPost {
 			var data struct {
 				UserID   string `json:"user_id"`
 				IsOffice bool   `json:"is_office"`
 			}
-			if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				log.Printf("Error reading request body: %v", err)
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
+			log.Printf("Received POST data: %s", string(body))
+
+			if err := json.Unmarshal(body, &data); err != nil {
+				log.Printf("Error unmarshaling JSON: %v", err)
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			log.Printf("Updating attendance status for user %s: is_office=%v", data.UserID, data.IsOffice)
+
 			tomorrow := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
 			if err := updateAttendanceStatus(data.UserID, tomorrow, data.IsOffice); err != nil {
+				log.Printf("Error updating attendance status: %v", err)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
+
+			log.Printf("Successfully updated attendance status")
 			w.WriteHeader(http.StatusOK)
+		} else {
+			log.Printf("Method not allowed: %s", r.Method)
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
 	})
 
