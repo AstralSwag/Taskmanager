@@ -680,12 +680,18 @@
         // Attendance functions
         function updateAttendanceTable() {
             fetch('/api/attendance')
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
+                    console.log('Received attendance data:', data);
                     const tbody = document.getElementById('attendanceTableBody');
                     tbody.innerHTML = '';
                     
-                    // Get all users from the select element
+                    // Get all users from select
                     const users = {};
                     document.querySelector('select[name="user_id"]').querySelectorAll('option').forEach(option => {
                         users[option.value] = option.textContent;
@@ -693,13 +699,13 @@
 
                     // Create a map of user statuses
                     const statusMap = new Map(data.map(s => [s.user_id, s]));
+                    console.log('Status map:', statusMap);
 
-                    // Add rows for all users
+                    // Create rows for all users
                     Object.entries(users).forEach(([userId, userName]) => {
                         const status = statusMap.get(userId);
                         const row = document.createElement('tr');
                         
-                        // Status cell with color
                         let statusText, statusClass;
                         if (!status) {
                             statusText = 'Не указано';
@@ -727,12 +733,17 @@
                         toggle.checked = false;
                     }
                 })
-                .catch(error => console.error('Error fetching attendance status:', error));
+                .catch(error => {
+                    console.error('Error fetching attendance status:', error);
+                    alert('Ошибка при обновлении статуса посещаемости');
+                });
         }
 
         function updateAttendanceStatus(checkbox) {
             const userId = document.querySelector('select[name="user_id"]').value;
             const isOffice = checkbox.checked;
+
+            console.log('Updating attendance status:', { userId, isOffice });
 
             fetch('/api/attendance', {
                 method: 'POST',
@@ -745,20 +756,23 @@
                 })
             })
             .then(response => {
-                if (response.ok) {
-                    updateAttendanceTable();
-                } else {
-                    console.error('Error updating attendance status');
-                    checkbox.checked = !isOffice; // Revert the toggle
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
                 }
+                return response.json();
+            })
+            .then(() => {
+                console.log('Successfully updated attendance status');
+                updateAttendanceTable();
             })
             .catch(error => {
                 console.error('Error updating attendance status:', error);
-                checkbox.checked = !isOffice; // Revert the toggle
+                checkbox.checked = !isOffice; // Revert checkbox state
+                alert('Ошибка при обновлении статуса посещаемости');
             });
         }
 
-        // Update attendance table when page loads and when user changes
+        // Update table on page load and when user changes
         document.addEventListener('DOMContentLoaded', updateAttendanceTable);
         document.querySelector('select[name="user_id"]').addEventListener('change', updateAttendanceTable);
     </script>

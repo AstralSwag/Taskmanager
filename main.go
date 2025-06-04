@@ -544,7 +544,14 @@ func main() {
 			}
 
 			log.Printf("Found %d attendance records", len(statuses))
-			json.NewEncoder(w).Encode(statuses)
+			jsonData, err := json.Marshal(statuses)
+			if err != nil {
+				log.Printf("Error marshaling JSON: %v", err)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			log.Printf("Sending JSON response: %s", string(jsonData))
+			w.Write(jsonData)
 
 		} else if r.Method == http.MethodPost {
 			var data struct {
