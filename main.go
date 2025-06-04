@@ -77,6 +77,7 @@ type AttendanceStatus struct {
 }
 
 var db *sql.DB
+var sqliteDB *sql.DB
 var users map[string]string
 var currentUserID string
 var currentQuote Quote
@@ -443,7 +444,7 @@ func initAttendanceTable() error {
 			PRIMARY KEY (user_id, date)
 		)
 	`
-	_, err := db.Exec(query)
+	_, err := sqliteDB.Exec(query)
 	return err
 }
 
@@ -451,9 +452,9 @@ func getAttendanceStatus(date string) ([]AttendanceStatus, error) {
 	query := `
 		SELECT user_id, date, is_office, updated_at
 		FROM attendance
-		WHERE date = $1
+		WHERE date = ?
 	`
-	rows, err := db.Query(query, date)
+	rows, err := sqliteDB.Query(query, date)
 	if err != nil {
 		return nil, err
 	}
@@ -474,12 +475,12 @@ func getAttendanceStatus(date string) ([]AttendanceStatus, error) {
 func updateAttendanceStatus(userID, date string, isOffice bool) error {
 	query := `
 		INSERT INTO attendance (user_id, date, is_office, updated_at)
-		VALUES ($1, $2, $3, $4)
+		VALUES (?, ?, ?, ?)
 		ON CONFLICT (user_id, date) DO UPDATE SET
-			is_office = EXCLUDED.is_office,
-			updated_at = EXCLUDED.updated_at
+			is_office = excluded.is_office,
+			updated_at = excluded.updated_at
 	`
-	_, err := db.Exec(query, userID, date, isOffice, time.Now())
+	_, err := sqliteDB.Exec(query, userID, date, isOffice, time.Now())
 	return err
 }
 
@@ -498,7 +499,8 @@ func main() {
 	// Подключаемся к SQLite
 	dbPath := filepath.Join(dataDir, "astralswag.db")
 	log.Printf("Connecting to SQLite database at: %s", dbPath)
-	sqliteDB, err := sql.Open("sqlite3", dbPath)
+	var err error
+	sqliteDB, err = sql.Open("sqlite3", dbPath)
 	if err != nil {
 		log.Fatal("Failed to open SQLite database:", err)
 	}
