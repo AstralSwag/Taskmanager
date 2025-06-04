@@ -435,6 +435,10 @@ func loadUsers() error {
 }
 
 func initAttendanceTable() error {
+	if sqliteDB == nil {
+		return fmt.Errorf("SQLite database connection is not initialized")
+	}
+
 	query := `
 		CREATE TABLE IF NOT EXISTS attendance (
 			user_id TEXT NOT NULL,
@@ -455,6 +459,10 @@ func initAttendanceTable() error {
 }
 
 func getAttendanceStatus(date string) ([]AttendanceStatus, error) {
+	if sqliteDB == nil {
+		return nil, fmt.Errorf("SQLite database connection is not initialized")
+	}
+
 	query := `
 		SELECT user_id, date, is_office, updated_at
 		FROM attendance
@@ -483,6 +491,10 @@ func getAttendanceStatus(date string) ([]AttendanceStatus, error) {
 }
 
 func updateAttendanceStatus(userID, date string, isOffice bool) error {
+	if sqliteDB == nil {
+		return fmt.Errorf("SQLite database connection is not initialized")
+	}
+
 	query := `
 		INSERT INTO attendance (user_id, date, is_office, updated_at)
 		VALUES (?, ?, ?, ?)
@@ -501,11 +513,6 @@ func updateAttendanceStatus(userID, date string, isOffice bool) error {
 }
 
 func main() {
-	initDB()
-	if err := loadUsers(); err != nil {
-		log.Fatalf("Error loading users: %v", err)
-	}
-
 	// Создаем директорию для данных если её нет
 	dataDir := "/app/data"
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
@@ -525,6 +532,12 @@ func main() {
 	// Initialize attendance table
 	if err := initAttendanceTable(); err != nil {
 		log.Fatalf("Error initializing attendance table: %v", err)
+	}
+
+	// Инициализируем PostgreSQL
+	initDB()
+	if err := loadUsers(); err != nil {
+		log.Fatalf("Error loading users: %v", err)
 	}
 
 	// Инициализируем первую цитату
