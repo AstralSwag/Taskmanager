@@ -8,6 +8,7 @@ services:
       - DB_PASSWORD=${REPLICATOR_PASSWORD}
       - DB_NAME=${REPLICATOR_DB}
       - DB_SSLMODE=disable
+      - TZ=Europe/Moscow 
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik-net"

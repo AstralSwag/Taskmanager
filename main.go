@@ -69,6 +69,13 @@ type Quote struct {
 	Author string
 }
 
+type AttendanceStatus struct {
+	UserID    string
+	Date      string
+	IsOffice  bool
+	UpdatedAt time.Time
+}
+
 var db *sql.DB
 var users map[string]string
 var currentUserID string
@@ -422,6 +429,56 @@ func loadUsers() error {
 	return nil
 }
 
+func initAttendanceTable() error {
+	query := `
+		CREATE TABLE IF NOT EXISTS attendance (
+			user_id TEXT NOT NULL,
+			date TEXT NOT NULL,
+			is_office BOOLEAN NOT NULL,
+			updated_at TIMESTAMP NOT NULL,
+			PRIMARY KEY (user_id, date)
+		)
+	`
+	_, err := db.Exec(query)
+	return err
+}
+
+func getAttendanceStatus(date string) ([]AttendanceStatus, error) {
+	query := `
+		SELECT user_id, date, is_office, updated_at
+		FROM attendance
+		WHERE date = ?
+	`
+	rows, err := db.Query(query, date)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var statuses []AttendanceStatus
+	for rows.Next() {
+		var s AttendanceStatus
+		err := rows.Scan(&s.UserID, &s.Date, &s.IsOffice, &s.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		statuses = append(statuses, s)
+	}
+	return statuses, nil
+}
+
+func updateAttendanceStatus(userID, date string, isOffice bool) error {
+	query := `
+		INSERT INTO attendance (user_id, date, is_office, updated_at)
+		VALUES (?, ?, ?, ?)
+		ON CONFLICT (user_id, date) DO UPDATE SET
+			is_office = excluded.is_office,
+			updated_at = excluded.updated_at
+	`
+	_, err := db.Exec(query, userID, date, isOffice, time.Now())
+	return err
+}
+
 func main() {
 	initDB()
 	if err := loadUsers(); err != nil {
@@ -481,6 +538,11 @@ func main() {
 
 	// Запускаем планировщик обновления цитаты
 	startQuoteScheduler()
+
+	// Initialize attendance table
+	if err := initAttendanceTable(); err != nil {
+		log.Fatalf("Error initializing attendance table: %v", err)
+	}
 
 	http.HandleFunc("/", indexHandler)
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
@@ -670,6 +732,34 @@ func main() {
 		}
 
 		json.NewEncoder(w).Encode(newTasks)
+	})
+
+	// Add new routes for attendance
+	http.HandleFunc("/api/attendance", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			tomorrow := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
+			statuses, err := getAttendanceStatus(tomorrow)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			json.NewEncoder(w).Encode(statuses)
+		} else if r.Method == http.MethodPost {
+			var data struct {
+				UserID   string `json:"user_id"`
+				IsOffice bool   `json:"is_office"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			tomorrow := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
+			if err := updateAttendanceStatus(data.UserID, tomorrow, data.IsOffice); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+		}
 	})
 
 	log.Println("Server starting on :8080...")

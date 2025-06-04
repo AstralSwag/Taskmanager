@@ -70,6 +70,34 @@
                 <p class="quote-author">— {{.Quote.Author}}</p>
             </div>
         </div>
+
+        <!-- Office Attendance Section -->
+        <div class="attendance-section mb-5">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2>Присутствие в офисе завтра</h2>
+                <div class="attendance-toggle">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="officeToggle" onchange="updateAttendanceStatus(this)">
+                        <label class="form-check-label" for="officeToggle">Буду в офисе</label>
+                    </div>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Сотрудник</th>
+                            <th>Статус</th>
+                            <th>Обновлено</th>
+                        </tr>
+                    </thead>
+                    <tbody id="attendanceTableBody">
+                        <!-- Will be populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         <div class="user-selector">
             <form method="POST" action="/" id="userForm">
                 <select name="user_id" onchange="this.form.submit(); saveSelectedUser(this.value);">
@@ -648,6 +676,91 @@
 
         // Вызываем восстановление при загрузке страницы
         document.addEventListener('DOMContentLoaded', restoreSelectedUser);
+
+        // Attendance functions
+        function updateAttendanceTable() {
+            fetch('/api/attendance')
+                .then(response => response.json())
+                .then(data => {
+                    const tbody = document.getElementById('attendanceTableBody');
+                    tbody.innerHTML = '';
+                    
+                    // Get all users from the select element
+                    const users = {};
+                    document.querySelector('select[name="user_id"]').querySelectorAll('option').forEach(option => {
+                        users[option.value] = option.textContent;
+                    });
+
+                    // Create a map of user statuses
+                    const statusMap = new Map(data.map(s => [s.user_id, s]));
+
+                    // Add rows for all users
+                    Object.entries(users).forEach(([userId, userName]) => {
+                        const status = statusMap.get(userId);
+                        const row = document.createElement('tr');
+                        
+                        // Status cell with color
+                        let statusText, statusClass;
+                        if (!status) {
+                            statusText = 'Не указано';
+                            statusClass = 'bg-warning';
+                        } else {
+                            statusText = status.is_office ? 'В офисе' : 'Дома';
+                            statusClass = status.is_office ? 'bg-success' : 'bg-danger';
+                        }
+
+                        row.innerHTML = `
+                            <td>${userName}</td>
+                            <td><span class="badge ${statusClass}">${statusText}</span></td>
+                            <td>${status ? new Date(status.updated_at).toLocaleString() : '-'}</td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+
+                    // Update toggle state for current user
+                    const currentUserId = document.querySelector('select[name="user_id"]').value;
+                    const currentUserStatus = statusMap.get(currentUserId);
+                    const toggle = document.getElementById('officeToggle');
+                    if (currentUserStatus) {
+                        toggle.checked = currentUserStatus.is_office;
+                    } else {
+                        toggle.checked = false;
+                    }
+                })
+                .catch(error => console.error('Error fetching attendance status:', error));
+        }
+
+        function updateAttendanceStatus(checkbox) {
+            const userId = document.querySelector('select[name="user_id"]').value;
+            const isOffice = checkbox.checked;
+
+            fetch('/api/attendance', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    user_id: userId,
+                    is_office: isOffice
+                })
+            })
+            .then(response => {
+                if (response.ok) {
+                    updateAttendanceTable();
+                } else {
+                    console.error('Error updating attendance status');
+                    checkbox.checked = !isOffice; // Revert the toggle
+                }
+            })
+            .catch(error => {
+                console.error('Error updating attendance status:', error);
+                checkbox.checked = !isOffice; // Revert the toggle
+            });
+        }
+
+        // Update attendance table when page loads and when user changes
+        document.addEventListener('DOMContentLoaded', updateAttendanceTable);
+        document.querySelector('select[name="user_id"]').addEventListener('change', updateAttendanceTable);
     </script>
 </body>
 </html> 
