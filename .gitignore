@@ -1,3 +1,4 @@
 .env
+.env.dev
 astralswag.db
 users.json
