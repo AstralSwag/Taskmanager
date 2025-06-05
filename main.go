@@ -11,12 +11,10 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
 	_ "github.com/lib/pq"
-	_ "github.com/mattn/go-sqlite3"
 )
 
 type Issue struct {
@@ -71,13 +69,17 @@ type Quote struct {
 
 type AttendanceStatus struct {
 	UserID    string
-	Date      string
 	IsOffice  bool
 	UpdatedAt time.Time
 }
 
+type UserAttendance struct {
+	UserID         string
+	TodayStatus    *AttendanceStatus
+	TomorrowStatus *AttendanceStatus
+}
+
 var db *sql.DB
-var sqliteDB *sql.DB
 var users map[string]string
 var currentUserID string
 var currentQuote Quote
@@ -435,81 +437,167 @@ func loadUsers() error {
 }
 
 func initAttendanceTable() error {
-	if sqliteDB == nil {
-		return fmt.Errorf("SQLite database connection is not initialized")
-	}
-
 	query := `
 		CREATE TABLE IF NOT EXISTS attendance (
-			user_id TEXT NOT NULL,
-			date TEXT NOT NULL,
-			is_office BOOLEAN NOT NULL,
-			updated_at TIMESTAMP NOT NULL,
-			PRIMARY KEY (user_id, date)
-		)
+			id SERIAL PRIMARY KEY,
+			user_id VARCHAR(255) NOT NULL,
+			is_office BOOLEAN NOT NULL DEFAULT false,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			date_part DATE GENERATED ALWAYS AS (DATE(created_at)) STORED,
+			UNIQUE(user_id, date_part)
+		);
+		CREATE INDEX IF NOT EXISTS idx_attendance_user_created ON attendance(user_id, created_at DESC);
+		CREATE INDEX IF NOT EXISTS idx_attendance_date_part ON attendance(date_part);
 	`
-	log.Printf("Creating attendance table with query: %s", query)
-	_, err := sqliteDB.Exec(query)
-	if err != nil {
-		log.Printf("Error creating attendance table: %v", err)
-		return err
-	}
-	log.Printf("Attendance table created successfully")
-	return nil
+	_, err := db.Exec(query)
+	return err
 }
 
-func getAttendanceStatus(date string) ([]AttendanceStatus, error) {
-	if sqliteDB == nil {
-		return nil, fmt.Errorf("SQLite database connection is not initialized")
-	}
-
-	query := `
-		SELECT user_id, date, is_office, updated_at
-		FROM attendance
-		WHERE date = ?
-	`
-	log.Printf("Executing query: %s with date: %s", query, date)
-	rows, err := sqliteDB.Query(query, date)
+func getLastPlanDate(userID string) (time.Time, error) {
+	var lastDate time.Time
+	err := db.QueryRow(`
+		SELECT created_at 
+		FROM plans 
+		WHERE user_id = $1 
+		ORDER BY created_at DESC 
+		LIMIT 1`, userID).Scan(&lastDate)
 	if err != nil {
-		log.Printf("Error executing query: %v", err)
-		return nil, err
+		return time.Time{}, err
+	}
+	return lastDate, nil
+}
+
+func getAttendanceStatus() ([]UserAttendance, error) {
+	now := time.Now()
+	today8am := time.Date(now.Year(), now.Month(), now.Day(), 8, 0, 0, 0, now.Location())
+	log.Printf("Getting attendance status at: %v, today 8am: %v", now, today8am)
+
+	// Получаем все записи посещаемости
+	query := `
+		WITH latest_statuses AS (
+			SELECT DISTINCT ON (user_id, CASE 
+				WHEN created_at < $1 THEN 1  -- до 8:00 сегодня
+				ELSE 2                       -- после 8:00 сегодня
+			END) 
+				user_id,
+				is_office,
+				created_at,
+				CASE 
+					WHEN created_at < $1 THEN 1  -- до 8:00 сегодня
+					ELSE 2                       -- после 8:00 сегодня
+				END as period
+			FROM attendance
+			ORDER BY user_id, period, created_at DESC
+		)
+		SELECT user_id, is_office, created_at, period
+		FROM latest_statuses
+		ORDER BY user_id, period`
+
+	rows, err := db.Query(query, today8am)
+	if err != nil {
+		log.Printf("Error querying attendance records: %v", err)
+		return nil, fmt.Errorf("error querying attendance records: %v", err)
 	}
 	defer rows.Close()
 
-	var statuses []AttendanceStatus
+	// Создаем карту для хранения статусов пользователей
+	userStatuses := make(map[string]*UserAttendance)
+
+	// Обрабатываем результаты запроса
 	for rows.Next() {
-		var s AttendanceStatus
-		err := rows.Scan(&s.UserID, &s.Date, &s.IsOffice, &s.UpdatedAt)
-		if err != nil {
-			log.Printf("Error scanning row: %v", err)
-			return nil, err
+		var userID string
+		var isOffice bool
+		var createdAt time.Time
+		var period int
+		if err := rows.Scan(&userID, &isOffice, &createdAt, &period); err != nil {
+			log.Printf("Error scanning attendance record: %v", err)
+			continue
 		}
-		statuses = append(statuses, s)
-		log.Printf("Found attendance record: %+v", s)
+
+		log.Printf("Found attendance record - User: %s, IsOffice: %v, CreatedAt: %v, Period: %d",
+			userID, isOffice, createdAt, period)
+
+		// Создаем или обновляем запись для пользователя
+		if _, exists := userStatuses[userID]; !exists {
+			userStatuses[userID] = &UserAttendance{
+				UserID: userID,
+			}
+		}
+
+		// Определяем, к какому периоду относится запись
+		if period == 1 {
+			// Запись до 8:00 сегодня
+			userStatuses[userID].TodayStatus = &AttendanceStatus{
+				UserID:    userID,
+				IsOffice:  isOffice,
+				UpdatedAt: createdAt,
+			}
+			log.Printf("Added today status for user %s: %v", userID, isOffice)
+		} else {
+			// Запись после 8:00 сегодня
+			userStatuses[userID].TomorrowStatus = &AttendanceStatus{
+				UserID:    userID,
+				IsOffice:  isOffice,
+				UpdatedAt: createdAt,
+			}
+			log.Printf("Added tomorrow status for user %s: %v", userID, isOffice)
+		}
 	}
-	return statuses, nil
+
+	if err = rows.Err(); err != nil {
+		log.Printf("Error iterating attendance records: %v", err)
+		return nil, fmt.Errorf("error iterating attendance records: %v", err)
+	}
+
+	// Преобразуем карту в слайс
+	result := make([]UserAttendance, 0, len(userStatuses))
+	for _, status := range userStatuses {
+		result = append(result, *status)
+	}
+
+	log.Printf("Returning attendance status for %d users", len(result))
+	return result, nil
 }
 
-func updateAttendanceStatus(userID, date string, isOffice bool) error {
-	if sqliteDB == nil {
-		return fmt.Errorf("SQLite database connection is not initialized")
-	}
+func updateAttendanceStatus(userID string, isOffice bool) error {
+	log.Printf("Updating attendance status for user %s: isOffice=%v", userID, isOffice)
 
+	// Создаем новую запись с текущим временем
 	query := `
-		INSERT INTO attendance (user_id, date, is_office, updated_at)
-		VALUES (?, ?, ?, ?)
-		ON CONFLICT (user_id, date) DO UPDATE SET
-			is_office = excluded.is_office,
-			updated_at = excluded.updated_at
-	`
-	log.Printf("Executing update query: %s with values: user_id=%s, date=%s, is_office=%v", query, userID, date, isOffice)
-	_, err := sqliteDB.Exec(query, userID, date, isOffice, time.Now())
+		INSERT INTO attendance (user_id, is_office, created_at)
+		VALUES ($1, $2, $3)`
+
+	_, err := db.Exec(query, userID, isOffice, time.Now())
 	if err != nil {
 		log.Printf("Error updating attendance status: %v", err)
-		return err
+		return fmt.Errorf("error updating attendance status: %v", err)
 	}
-	log.Printf("Successfully updated attendance status in database")
+
+	log.Printf("Successfully updated attendance status for user %s", userID)
 	return nil
+}
+
+func savePlan(userID string, content string) error {
+	_, err := db.Exec(`
+		INSERT INTO plans (user_id, content)
+		VALUES ($1, $2)
+		ON CONFLICT (user_id, created_at) 
+		DO UPDATE SET content = $2`, userID, content)
+	return err
+}
+
+func getPlan(userID string) (string, error) {
+	var content string
+	err := db.QueryRow(`
+		SELECT content 
+		FROM plans 
+		WHERE user_id = $1 
+		ORDER BY created_at DESC 
+		LIMIT 1`, userID).Scan(&content)
+	if err != nil {
+		return "", err
+	}
+	return content, nil
 }
 
 func main() {
@@ -517,21 +605,6 @@ func main() {
 	dataDir := "/app/data"
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
 		log.Fatal("Failed to create data directory:", err)
-	}
-
-	// Подключаемся к SQLite
-	dbPath := filepath.Join(dataDir, "astralswag.db")
-	log.Printf("Connecting to SQLite database at: %s", dbPath)
-	var err error
-	sqliteDB, err = sql.Open("sqlite3", dbPath)
-	if err != nil {
-		log.Fatal("Failed to open SQLite database:", err)
-	}
-	defer sqliteDB.Close()
-
-	// Initialize attendance table
-	if err := initAttendanceTable(); err != nil {
-		log.Fatalf("Error initializing attendance table: %v", err)
 	}
 
 	// Инициализируем PostgreSQL
@@ -564,10 +637,7 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 
 		if r.Method == http.MethodGet {
-			tomorrow := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
-			log.Printf("Getting attendance status for date: %s", tomorrow)
-
-			statuses, err := getAttendanceStatus(tomorrow)
+			statuses, err := getAttendanceStatus()
 			if err != nil {
 				log.Printf("Error getting attendance status: %v", err)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -575,19 +645,12 @@ func main() {
 			}
 
 			log.Printf("Found %d attendance records", len(statuses))
-			// Всегда возвращаем массив, даже если он пустой
-			if statuses == nil {
-				statuses = []AttendanceStatus{}
-			}
-			jsonData, err := json.Marshal(statuses)
-			if err != nil {
-				log.Printf("Error marshaling JSON: %v", err)
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+			if err := json.NewEncoder(w).Encode(statuses); err != nil {
+				log.Printf("Error encoding attendance response: %v", err)
+				http.Error(w, "Error encoding response", http.StatusInternalServerError)
 				return
 			}
-			log.Printf("Sending JSON response: %s", string(jsonData))
-			w.Write(jsonData)
-
+			log.Printf("Successfully sent attendance response")
 		} else if r.Method == http.MethodPost {
 			body, err := io.ReadAll(r.Body)
 			if err != nil {
@@ -608,22 +671,27 @@ func main() {
 				return
 			}
 
-			tomorrow := time.Now().AddDate(0, 0, 1).Format("2006-01-02")
+			if data.UserID == "" {
+				log.Printf("Error: user_id is required")
+				http.Error(w, "user_id is required", http.StatusBadRequest)
+				return
+			}
+
 			log.Printf("Updating attendance status for user %s: is_office=%v", data.UserID, data.IsOffice)
 
-			if err := updateAttendanceStatus(data.UserID, tomorrow, data.IsOffice); err != nil {
+			if err := updateAttendanceStatus(data.UserID, data.IsOffice); err != nil {
 				log.Printf("Error updating attendance status: %v", err)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 
 			log.Printf("Successfully updated attendance status")
-			// Возвращаем пустой объект в случае успеха
+			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("{}"))
 		}
 	})
 
-	// Добавляем новый обработчик для сохранения плана
+	// Обновляем обработчик для сохранения плана
 	http.HandleFunc("/save-plan", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -638,44 +706,22 @@ func main() {
 
 		log.Printf("Saving plan for user %s", currentUserID)
 
-		// Используем UPSERT для обновления или вставки плана пользователя
-		result, err := sqliteDB.Exec(`
-			INSERT INTO plans (user_id, content) 
-			VALUES (?, ?) 
-			ON CONFLICT(user_id) DO UPDATE SET 
-				content = excluded.content,
-				created_at = CURRENT_TIMESTAMP
-		`, currentUserID, content)
-
-		if err != nil {
+		if err := savePlan(currentUserID, content); err != nil {
 			log.Printf("Failed to save plan for user %s: %v", currentUserID, err)
 			http.Error(w, "Failed to save plan", http.StatusInternalServerError)
 			return
 		}
 
-		rowsAffected, err := result.RowsAffected()
-		if err != nil {
-			log.Printf("Failed to get rows affected: %v", err)
-		} else {
-			log.Printf("Plan saved for user %s, rows affected: %d", currentUserID, rowsAffected)
-		}
-
-		w.WriteHeader(http.StatusOK)
+		// Return the saved content in the response
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"content": content})
 	})
 
-	// Добавляем обработчик для получения плана
+	// Обновляем обработчик для получения плана
 	http.HandleFunc("/get-plan", func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Getting plan for user %s", currentUserID)
 
-		var content string
-		err := sqliteDB.QueryRow(`
-			SELECT content 
-			FROM plans 
-			WHERE user_id = ? 
-			ORDER BY created_at DESC 
-			LIMIT 1
-		`, currentUserID).Scan(&content)
-
+		content, err := getPlan(currentUserID)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				log.Printf("No plan found for user %s", currentUserID)
@@ -688,16 +734,13 @@ func main() {
 			return
 		}
 
-		// Добавляем логирование
 		log.Printf("Raw plan content from DB for user %s: %s", currentUserID, content)
 
-		// Создаем структуру для JSON
 		type PlanResponse struct {
 			Content string `json:"content"`
 		}
 		response := PlanResponse{Content: content}
 
-		// Отправляем JSON
 		w.Header().Set("Content-Type", "application/json")
 		jsonData, err := json.Marshal(response)
 		if err != nil {
@@ -714,15 +757,7 @@ func main() {
 		log.Printf("Getting new tasks for user %s", currentUserID)
 
 		// Получаем дату последнего сохраненного плана
-		var lastPlanDate time.Time
-		err := sqliteDB.QueryRow(`
-			SELECT created_at 
-			FROM plans 
-			WHERE user_id = ? 
-			ORDER BY created_at DESC 
-			LIMIT 1
-		`, currentUserID).Scan(&lastPlanDate)
-
+		lastPlanDate, err := getLastPlanDate(currentUserID)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				log.Printf("No plan found for user %s, using current time", currentUserID)
@@ -808,6 +843,54 @@ func main() {
 		}
 
 		json.NewEncoder(w).Encode(newTasks)
+	})
+
+	// Обновляем запросы для работы с планами
+	http.HandleFunc("/api/plans", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			var plan struct {
+				UserID string `json:"user_id"`
+				Date   string `json:"date"`
+				Plan   string `json:"plan"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&plan); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			query := `
+				INSERT INTO plans (user_id, date, plan, created_at, updated_at)
+				VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+				ON CONFLICT (user_id, date) 
+				DO UPDATE SET plan = $3, updated_at = CURRENT_TIMESTAMP
+			`
+			_, err := db.Exec(query, plan.UserID, plan.Date, plan.Plan)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+		} else if r.Method == http.MethodGet {
+			userID := r.URL.Query().Get("user_id")
+			date := r.URL.Query().Get("date")
+
+			var plan string
+			err := db.QueryRow(`
+				SELECT plan 
+				FROM plans 
+				WHERE user_id = $1 AND date = $2
+			`, userID, date).Scan(&plan)
+
+			if err == sql.ErrNoRows {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			} else if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			json.NewEncoder(w).Encode(map[string]string{"plan": plan})
+		}
 	})
 
 	http.HandleFunc("/", indexHandler)

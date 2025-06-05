@@ -4,9 +4,9 @@ services:
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_USER=${REPLICATOR_USER:-postgres}
-      - DB_PASSWORD=${REPLICATOR_PASSWORD:-postgres}
-      - DB_NAME=${REPLICATOR_DB:-taskmanager}
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=taskmanager
       - DB_SSLMODE=disable
       - TZ=Europe/Moscow
     volumes:
@@ -24,16 +24,14 @@ services:
   postgres:
     image: postgres:15
     environment:
-      POSTGRES_USER: ${REPLICATOR_USER:-postgres}
-      POSTGRES_PASSWORD: ${REPLICATOR_PASSWORD:-postgres}
-      POSTGRES_DB: ${REPLICATOR_DB:-taskmanager}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: taskmanager
       PLANE_HOST: ${PLANE_HOST}
       PLANE_PORT: ${PLANE_PORT}
       PLANE_DB: ${PLANE_DB}
       PLANE_USER: ${PLANE_USER}
       PLANE_PASSWORD: ${PLANE_PASSWORD}
-      REPLICATOR_USER: ${REPLICATOR_USER}
-      REPLICATOR_PASSWORD: ${REPLICATOR_PASSWORD}
     volumes:
       - ./init-scripts-dev:/docker-entrypoint-initdb.d
       - postgres_data:/var/lib/postgresql/data
@@ -41,7 +39,7 @@ services:
     extra_hosts:
       - "n8n.it4retail.tech:188.225.81.231"
     ports:
-      - "${REPLICA_PORT}:5432"
+      - "5432:5432"
     networks:
       - app-network
     healthcheck:

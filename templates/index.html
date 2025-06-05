@@ -75,11 +75,13 @@
         <div class="attendance-section mb-5">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h2>Присутствие в офисе завтра</h2>
-                <div class="attendance-toggle">
-                    <div class="form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="officeToggle" onchange="updateAttendanceStatus(this)">
-                        <label class="form-check-label" for="officeToggle">Буду в офисе</label>
-                    </div>
+                <div class="attendance-buttons">
+                    <button class="btn btn-outline-success attendance-btn" id="officeBtn" onclick="updateAttendanceStatus(true)">
+                        В офисе
+                    </button>
+                    <button class="btn btn-outline-danger attendance-btn" id="homeBtn" onclick="updateAttendanceStatus(false)">
+                        Дома
+                    </button>
                 </div>
             </div>
             <div class="table-responsive">
@@ -87,7 +89,8 @@
                     <thead>
                         <tr>
                             <th>Сотрудник</th>
-                            <th>Статус</th>
+                            <th>Статус на сегодня</th>
+                            <th>Статус на завтра</th>
                             <th>Обновлено</th>
                         </tr>
                     </thead>
@@ -354,6 +357,16 @@
 
             document.getElementById('planTable').textContent = table;
             
+            // Закрываем модальное окно с комментариями
+            const commentsModal = bootstrap.Modal.getInstance(document.getElementById('commentsModal'));
+            if (commentsModal) {
+                commentsModal.hide();
+            }
+            
+            // Показываем модальное окно с таблицей
+            const planModal = new bootstrap.Modal(document.getElementById('planModal'));
+            planModal.show();
+            
             // Автоматически сохраняем план
             fetch('/save-plan', {
                 method: 'POST',
@@ -366,24 +379,13 @@
             .then(data => {
                 if (data.content) {
                     document.getElementById('myPlanContent').innerHTML = formatPlanContent(data.content);
-                    const modal = new bootstrap.Modal(document.getElementById('myPlanModal'));
-                    modal.show();
                 } else {
-                    alert('План не найден');
+                    console.error('План не найден в ответе:', data);
                 }
             })
             .catch(error => {
                 console.error('Ошибка при сохранении плана:', error);
-                alert('Ошибка при загрузке плана');
             });
-            
-            // Закрываем модальное окно с комментариями
-            const commentsModal = bootstrap.Modal.getInstance(document.getElementById('commentsModal'));
-            commentsModal.hide();
-            
-            // Показываем модальное окно с таблицей
-            const planModal = new bootstrap.Modal(document.getElementById('planModal'));
-            planModal.show();
         }
 
         function copyPlan() {
@@ -689,21 +691,33 @@
                 .then(data => {
                     console.log('Received attendance data:', data);
                     const tbody = document.getElementById('attendanceTableBody');
+                    if (!tbody) {
+                        console.error('Table body element not found');
+                        return;
+                    }
                     tbody.innerHTML = '';
                     
                     // Get all users from select
+                    const select = document.querySelector('select[name="user_id"]');
+                    if (!select) {
+                        console.error('User select element not found');
+                        return;
+                    }
+
                     const users = {};
-                    document.querySelector('select[name="user_id"]').querySelectorAll('option').forEach(option => {
+                    select.querySelectorAll('option').forEach(option => {
                         users[option.value] = option.textContent;
                     });
 
                     // Create a map of user statuses
                     const statusMap = new Map();
-                    data.forEach(status => {
-                        if (status.UserID) {  // Проверяем наличие UserID
-                            statusMap.set(status.UserID, status);
-                        }
-                    });
+                    if (Array.isArray(data)) {
+                        data.forEach(status => {
+                            if (status && status.UserID) {
+                                statusMap.set(status.UserID, status);
+                            }
+                        });
+                    }
                     console.log('Status map:', statusMap);
 
                     // Create rows for all users
@@ -711,42 +725,77 @@
                         const status = statusMap.get(userId);
                         const row = document.createElement('tr');
                         
-                        let statusText, statusClass;
-                        if (!status) {
-                            statusText = 'Не указано';
-                            statusClass = 'bg-warning';
-                        } else {
-                            statusText = status.IsOffice ? 'В офисе' : 'Дома';
-                            statusClass = status.IsOffice ? 'bg-success' : 'bg-danger';
+                        let todayStatusText = 'Не указано';
+                        let todayStatusClass = 'bg-warning';
+                        let tomorrowStatusText = 'Не указано';
+                        let tomorrowStatusClass = 'bg-warning';
+                        let updatedAt = '-';
+
+                        if (status) {
+                            if (status.TodayStatus) {
+                                todayStatusText = status.TodayStatus.IsOffice ? 'В офисе' : 'Дома';
+                                todayStatusClass = status.TodayStatus.IsOffice ? 'bg-success' : 'bg-danger';
+                                updatedAt = new Date(status.TodayStatus.UpdatedAt).toLocaleString();
+                            }
+                            if (status.TomorrowStatus) {
+                                tomorrowStatusText = status.TomorrowStatus.IsOffice ? 'В офисе' : 'Дома';
+                                tomorrowStatusClass = status.TomorrowStatus.IsOffice ? 'bg-success' : 'bg-danger';
+                            }
                         }
 
                         row.innerHTML = `
                             <td>${userName}</td>
-                            <td><span class="badge ${statusClass}">${statusText}</span></td>
-                            <td>${status ? new Date(status.UpdatedAt).toLocaleString() : '-'}</td>
+                            <td><span class="badge ${todayStatusClass}">${todayStatusText}</span></td>
+                            <td><span class="badge ${tomorrowStatusClass}">${tomorrowStatusText}</span></td>
+                            <td>${updatedAt}</td>
                         `;
                         tbody.appendChild(row);
                     });
 
-                    // Update toggle state for current user
-                    const currentUserId = document.querySelector('select[name="user_id"]').value;
+                    // Update buttons state for current user
+                    const currentUserId = select.value;
                     const currentUserStatus = statusMap.get(currentUserId);
-                    const toggle = document.getElementById('officeToggle');
-                    if (currentUserStatus) {
-                        toggle.checked = currentUserStatus.IsOffice;
-                    } else {
-                        toggle.checked = false;
+                    const officeBtn = document.getElementById('officeBtn');
+                    const homeBtn = document.getElementById('homeBtn');
+                    
+                    if (officeBtn && homeBtn) {
+                        if (currentUserStatus && currentUserStatus.TomorrowStatus) {
+                            if (currentUserStatus.TomorrowStatus.IsOffice) {
+                                officeBtn.classList.add('active', 'btn-success');
+                                officeBtn.classList.remove('btn-outline-success');
+                                homeBtn.classList.remove('active', 'btn-danger');
+                                homeBtn.classList.add('btn-outline-danger');
+                            } else {
+                                homeBtn.classList.add('active', 'btn-danger');
+                                homeBtn.classList.remove('btn-outline-danger');
+                                officeBtn.classList.remove('active', 'btn-success');
+                                officeBtn.classList.add('btn-outline-success');
+                            }
+                        } else {
+                            officeBtn.classList.remove('active', 'btn-success');
+                            officeBtn.classList.add('btn-outline-success');
+                            homeBtn.classList.remove('active', 'btn-danger');
+                            homeBtn.classList.add('btn-outline-danger');
+                        }
                     }
                 })
                 .catch(error => {
                     console.error('Error fetching attendance status:', error);
-                    alert('Ошибка при обновлении статуса посещаемости');
+                    const tbody = document.getElementById('attendanceTableBody');
+                    if (tbody) {
+                        tbody.innerHTML = `
+                            <tr>
+                                <td colspan="4" class="text-center text-danger">
+                                    Ошибка при загрузке данных: ${error.message}
+                                </td>
+                            </tr>
+                        `;
+                    }
                 });
         }
 
-        function updateAttendanceStatus(checkbox) {
+        function updateAttendanceStatus(isOffice) {
             const userId = document.querySelector('select[name="user_id"]').value;
-            const isOffice = checkbox.checked;
 
             console.log('Updating attendance status:', { userId, isOffice });
 
@@ -770,8 +819,6 @@
             })
             .catch(error => {
                 console.error('Error updating attendance status:', error);
-                // Возвращаем чекбокс в предыдущее состояние в случае ошибки
-                checkbox.checked = !isOffice;
                 alert('Ошибка при обновлении статуса посещаемости');
             });
         }
@@ -781,6 +828,11 @@
             updateAttendanceTable();
             // Обновляем таблицу каждые 30 секунд
             setInterval(updateAttendanceTable, 30000);
+        });
+
+        // Обновляем таблицу перед обновлением страницы
+        window.addEventListener('beforeunload', function() {
+            updateAttendanceTable();
         });
     </script>
 </body>
