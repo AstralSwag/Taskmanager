@@ -7,7 +7,7 @@ services:
       - DB_USER=${REPLICATOR_USER}
       - DB_PASSWORD=${REPLICATOR_PASSWORD}
       - DB_NAME=${REPLICATOR_DB}
-      - DB_SSLMODE=require
+      - DB_SSLMODE=disable
       - TZ=Europe/Moscow 
     labels:
       - "traefik.enable=true"
@@ -47,7 +47,7 @@ services:
     volumes:
       - ./init-scripts:/docker-entrypoint-initdb.d
       - /opt/planfact/Taskmanager/data/chain.pem:/etc/ssl/postgresql/root.crt
-    command: postgres -c wal_level=logical
+    command: postgres -c wal_level=logical -c max_replication_slots=20
     extra_hosts:
       - "n8n.it4retail.tech:188.225.81.231"
     restart: unless-stopped
