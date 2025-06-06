@@ -56,8 +56,8 @@
             </div>
         </div>
     </div>
-    <div class="toast-container position-fixed bottom-0 end-0 p-3">
-        <div id="copyToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="toast-container position-fixed top-20 end-0 p-3">
+        <div id="copyToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true" style="opacity: 0.8;">
             <div class="toast-body">
                 Скопировано в буфер обмена
             </div>
@@ -106,26 +106,30 @@
             
             <!-- Список задач (справа) -->
             <div class="col-md-9">
-                <div class="quote-container text-center mb-5">
+                <div class="quote-container text-center mb-3">
                     <div class="quote-wrapper">
-                        <h1 class="quote-text">{{.Quote.Text}}</h1>
-                        <p class="quote-author">— {{.Quote.Author}}</p>
+                        <div class="quote-content">
+                            <h1 class="quote-text">{{.Quote.Text}}</h1>
+                            <p class="quote-author">— {{if .Quote.Author}}{{.Quote.Author}}{{else}}Джейсон Стэтхэм{{end}}</p>
+                        </div>
                     </div>
                 </div>
                 {{with $name := index .Users .CurrentUserID}}
-                <div class="current-username text-center mb-4">
-                    <span class="username-display">{{upper $name}}</span>
+                <div class="current-username mb-2">
+                    <div class="username-container">
+                        <div class="select-all-container">
+                            <div class="issue-checkbox">
+                                <input type="checkbox" class="form-check-input" id="select-all" onchange="toggleAllCheckboxes(this)">
+                            </div>
+                            <div class="select-all-label">
+                                <label for="select-all">Выбрать все</label>
+                            </div>
+                        </div>
+                        <span class="username-display">{{upper $name}}</span>
+                    </div>
                 </div>
                 {{end}}
                 <div class="issues-list">
-                    <div class="select-all-container">
-                        <div class="issue-checkbox">
-                            <input type="checkbox" class="form-check-input" id="select-all" onchange="toggleAllCheckboxes(this)">
-                        </div>
-                        <div class="select-all-label">
-                            <label for="select-all">Выбрать все</label>
-                        </div>
-                    </div>
                     {{range .Issues}}
                     <div class="issue-item">
                         <div class="issue-checkbox">
@@ -401,7 +405,10 @@
             const planTable = document.getElementById('planTable');
             navigator.clipboard.writeText(planTable.textContent).then(() => {
                 // Показываем уведомление
-                const toast = new bootstrap.Toast(document.getElementById('copyToast'));
+                const toast = new bootstrap.Toast(document.getElementById('copyToast'), {
+                    delay: 2000,
+                    animation: true
+                });
                 toast.show();
                 
                 // Закрываем модальное окно
@@ -652,7 +659,10 @@
             const factTable = document.getElementById('factTable');
             navigator.clipboard.writeText(factTable.textContent).then(() => {
                 // Показываем уведомление
-                const toast = new bootstrap.Toast(document.getElementById('copyToast'));
+                const toast = new bootstrap.Toast(document.getElementById('copyToast'), {
+                    delay: 2000,
+                    animation: true
+                });
                 toast.show();
                 
                 // Закрываем модальные окна

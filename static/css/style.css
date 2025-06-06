@@ -35,17 +35,22 @@
 }
 
 .badge {
-    padding: 6px 10px;
-    border-radius: 20px;
+    padding: 6px 12px;
+    border-radius: 4px;
     font-weight: 500;
-    font-size: 0.8rem;
-    min-width: 100px !important;
-    width: 100px !important;
-    max-width: 100px !important;
+    font-size: 0.75rem;
+    min-width: 80px !important;
+    width: auto !important;
+    max-width: 120px !important;
     display: inline-block !important;
     text-align: center !important;
     box-sizing: border-box !important;
     white-space: nowrap !important;
+    line-height: 1.2;
+    height: 24px;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
 }
 
 body {
@@ -127,20 +132,20 @@ body {
 
 .issue-details .status-badge {
     margin-left: auto;
-    min-width: 100px !important;
+    min-width: 80px !important;
     flex-shrink: 0;
 }
 
 .issue-details .status-badge .badge {
-    min-width: 100px !important;
-    width: 100px !important;
-    max-width: 100px !important;
-    display: inline-block !important;
-    text-align: center !important;
-    box-sizing: border-box !important;
-    white-space: nowrap !important;
-    padding: 4px 8px !important;
-    font-size: 0.7rem !important;
+    min-width: 80px !important;
+    width: auto !important;
+    max-width: 120px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 6px 12px !important;
+    font-size: 0.75rem !important;
+    height: 24px;
 }
 
 .issue-meta {
@@ -217,11 +222,13 @@ body {
     font-size: 0.7rem;
 }
 
-.badge {
-    font-size: 0.7rem;
-    padding: 2px 4px;
-    border-radius: 3px;
-    font-weight: 500;
+.estimate-value .badge {
+    min-width: 40px !important;
+    width: auto !important;
+    max-width: 60px !important;
+    height: 24px;
+    padding: 4px 8px !important;
+    font-size: 0.75rem !important;
 }
 
 .issue-id {
@@ -324,16 +331,16 @@ body {
 .select-all-container {
     display: flex;
     align-items: center;
-    padding: 8px 12px;
+    padding: 4px 8px;
     background: #f8f9fa;
     border-radius: 6px;
-    margin-bottom: 8px;
     border: 1px solid #e0e0e0;
+    width: fit-content;
 }
 
 .select-all-label {
-    margin-left: 8px;
-    font-size: 0.9rem;
+    margin-left: 6px;
+    font-size: 0.8rem;
     color: #666;
 }
 
@@ -613,62 +620,63 @@ body {
 }
 
 .quote-container {
-    padding: 0.15rem 0;
-    margin: 0 0 0.2rem 0;
+    padding: 0 !important;
+    margin: 0 !important;
+    margin-top: 0 !important;
+    text-align: right !important;
 }
 
 .quote-wrapper {
-    max-width: 100%;
-    margin: 0;
-    padding: 0.2rem 1rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5rem;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: flex !important;
+    align-items: flex-end !important;
+    justify-content: flex-end !important;
 }
 
-.quote-text {
-    font-family: 'Georgia', serif;
-    font-size: 0.75rem;
-    line-height: 1.1;
-    color: #2c3e50;
-    margin: 0;
-    font-style: italic;
-    position: relative;
-    display: inline;
+.quote-content {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-end !important;
+    gap: 0.3rem !important;
 }
 
-.quote-text::before,
-.quote-text::after {
-    content: '"';
-    font-size: 0.9rem;
-    color: #6c757d;
-    opacity: 0.3;
-    position: relative;
-    display: inline;
+.quote-content .quote-text {
+    font-family: 'Georgia', serif !important;
+    font-size: 1.1rem !important;
+    line-height: 1.2 !important;
+    color: #2c3e50 !important;
+    margin: 0 !important;
+    font-style: italic !important;
+    position: relative !important;
+    display: inline !important;
+    text-align: right !important;
 }
 
-.quote-text::before {
-    margin-right: 0.2rem;
+.quote-content .quote-text::before,
+.quote-content .quote-text::after {
+    content: '"' !important;
+    font-size: 1.2rem !important;
+    color: #6c757d !important;
+    opacity: 0.5 !important;
+    position: relative !important;
+    display: inline !important;
+    font-family: 'Georgia', serif !important;
 }
 
-.quote-text::after {
-    margin-left: 0.2rem;
+.quote-content .quote-author {
+    font-family: 'Arial', sans-serif !important;
+    font-size: 1rem !important;
+    color: #6c757d !important;
+    font-weight: 500 !important;
+    margin: 0 !important;
+    text-align: right !important;
 }
 
-.quote-author {
-    font-family: 'Arial', sans-serif;
-    font-size: 0.65rem;
-    color: #6c757d;
-    font-weight: 500;
-    margin: 0;
-    position: relative;
-    display: inline;
-}
-
-.quote-author::before {
-    content: '—';
-    margin-right: 0.3rem;
+.quote-content .quote-author::before {
+    content: '—' !important;
+    margin-right: 0.3rem !important;
 }
 
 /* Attendance Section Styles */
@@ -866,17 +874,17 @@ body {
 
 /* Стили для цитаты */
 .quote-container {
-    margin-bottom: 30px;
-}
-
-.quote-text {
-    font-size: 1.5rem;
-    color: #495057;
     margin-bottom: 10px;
 }
 
+.quote-text {
+    font-size: 0.8rem !important;
+    color: #495057;
+    margin-bottom: 3px;
+}
+
 .quote-author {
-    font-size: 1rem;
+    font-size: 0.65rem;
     color: #6c757d;
 }
 
@@ -914,6 +922,26 @@ body {
     .issue-details {
         flex-direction: column;
         align-items: flex-start;
+    }
+    
+    .badge {
+        min-width: 70px !important;
+        max-width: 100px !important;
+        font-size: 0.7rem !important;
+        height: 22px;
+        padding: 4px 10px !important;
+    }
+    
+    .issue-details .status-badge .badge {
+        min-width: 70px !important;
+        max-width: 100px !important;
+        height: 22px;
+    }
+    
+    .estimate-value .badge {
+        min-width: 35px !important;
+        max-width: 50px !important;
+        height: 22px;
     }
 }
 
@@ -956,14 +984,29 @@ body {
     font-weight: bold;
 }
 
+.username-container {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    margin-bottom: 0.3rem;
+}
+
 .username-display {
-    display: block;
-    font-size: 2.2rem;
+    display: inline-block;
+    font-size: 1.8rem;
     font-weight: bold;
     letter-spacing: 0.15em;
     color: #2c3e50;
-    margin-bottom: 0.5rem;
     text-transform: uppercase;
+    margin: 0;
+}
+
+.current-username {
+    margin-bottom: 0.3rem !important;
+}
+
+.issues-list {
+    margin-top: 0.3rem;
 }
 
 @media (max-width: 768px) {
