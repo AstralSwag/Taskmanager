@@ -7,7 +7,7 @@ services:
       - DB_USER=${REPLICATOR_USER}
       - DB_PASSWORD=${REPLICATOR_PASSWORD}
       - DB_NAME=${REPLICATOR_DB}
-      - DB_SSLMODE=disable
+      - DB_SSLMODE=require
       - TZ=Europe/Moscow 
     labels:
       - "traefik.enable=true"

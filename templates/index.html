@@ -3,13 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Александр навайбкодил</title>
+    <title>PlanFact</title>
+    <style>
+        /* Запрещаем выделение текста для всех элементов */
+        * {
+            user-select: none;
+        }
+        
+        /* Разрешаем выделение текста только для интерактивных элементов */
+        input, textarea, button, [contenteditable="true"] {
+            user-select: text;
+        }
+        
+        /* Разрешаем выделение текста для ссылок */
+        a {
+            user-select: text;
+        }
+    </style>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="/static/css/style.css" rel="stylesheet">
 </head>
 <body>
-    <div class="floating-counter" style="display: none;">
-        <div class="counter-content">
+    <div class="floating-counter" style="display: none;" tabindex="-1">
+        <div class="counter-content" tabindex="-1">
             <span class="counter-label">Всего estimates:</span>
             <span class="counter-value">0</span>
         </div>
@@ -63,13 +79,14 @@
             </div>
         </div>
     </div>
-    <div class="container-fluid mt-5">
-        <div class="row">
+    <div class="container-fluid mt-5" tabindex="-1">
+        <div class="row" tabindex="-1">
             <!-- Таблица присутствия (слева) -->
-            <div class="col-md-3">
+            <div class="col-md-3" tabindex="-1">
                 <div class="attendance-section" 
                      data-current-user="{{.CurrentUserID}}"
-                     data-users='{{range $id, $name := .Users}}{{$id}}:{{$name}},{{end}}'>
+                     data-users='{{range $id, $name := .Users}}{{$id}}:{{$name}},{{end}}'
+                     tabindex="-1">
                     <h2>Посещаемость</h2>
                     <div class="attendance-buttons mb-2">
                         <div class="row g-0">
@@ -88,16 +105,16 @@
                             </div>
                         </div>
                     </div>
-                    <div class="table-responsive">
-                        <table class="table table-sm">
-                            <thead>
-                                <tr>
-                                    <th>Сотрудник</th>
-                                    <th>Сегодня</th>
-                                    <th>Завтра</th>
+                    <div class="table-responsive" tabindex="-1">
+                        <table class="table table-sm" tabindex="-1">
+                            <thead tabindex="-1">
+                                <tr tabindex="-1">
+                                    <th tabindex="-1">Сотрудник</th>
+                                    <th tabindex="-1">Сегодня</th>
+                                    <th tabindex="-1">Завтра</th>
                                 </tr>
                             </thead>
-                            <tbody id="attendanceTableBody">
+                            <tbody id="attendanceTableBody" tabindex="-1">
                             </tbody>
                         </table>
                     </div>
@@ -105,18 +122,18 @@
             </div>
             
             <!-- Список задач (справа) -->
-            <div class="col-md-9">
-                <div class="quote-container text-center mb-3">
-                    <div class="quote-wrapper">
-                        <div class="quote-content">
-                            <h1 class="quote-text">{{.Quote.Text}}</h1>
-                            <p class="quote-author">— {{if .Quote.Author}}{{.Quote.Author}}{{else}}Джейсон Стэтхэм{{end}}</p>
+            <div class="col-md-9" tabindex="-1">
+                <div class="quote-container text-center mb-3" tabindex="-1">
+                    <div class="quote-wrapper" tabindex="-1">
+                        <div class="quote-content" tabindex="-1">
+                            <h1 class="quote-text" tabindex="-1">{{.Quote.Text}}</h1>
+                            <p class="quote-author" tabindex="-1">— {{if .Quote.Author}}{{.Quote.Author}}{{else}}Джейсон Стэтхэм{{end}}</p>
                         </div>
                     </div>
                 </div>
                 {{with $name := index .Users .CurrentUserID}}
-                <div class="current-username mb-2">
-                    <div class="username-container">
+                <div class="current-username mb-2" tabindex="-1">
+                    <div class="username-container" tabindex="-1">
                         <div class="select-all-container">
                             <div class="issue-checkbox">
                                 <input type="checkbox" class="form-check-input" id="select-all" onchange="toggleAllCheckboxes(this)">
@@ -129,7 +146,7 @@
                     </div>
                 </div>
                 {{end}}
-                <div class="issues-list">
+                <div class="issues-list" tabindex="-1">
                     {{range .Issues}}
                     <div class="issue-item">
                         <div class="issue-checkbox">
@@ -142,34 +159,34 @@
                             </div>
                             {{end}}
                         </div>
-                        <div class="issue-content-wrapper">
-                            <div class="issue-header">
-                                <div class="issue-title">
-                                    <h5>
+                        <div class="issue-content-wrapper" tabindex="-1">
+                            <div class="issue-header" tabindex="-1">
+                                <div class="issue-title" tabindex="-1">
+                                    <h5 tabindex="-1">
                                         <a href="https://plane.it4retail.tech/it4retail/browse/{{.ProjectIdentifier}}-{{.SequenceID}}/" class="issue-id" target="_blank">
                                             {{.ProjectIdentifier}}-{{.SequenceID}}
                                         </a>
                                         {{.Name}}
                                     </h5>
-                                    <span class="badge bg-{{if eq .Priority "urgent"}}danger{{else if eq .Priority "high"}}warning{{else if eq .Priority "medium"}}info{{else}}secondary{{end}}">
+                                    <span class="badge bg-{{if eq .Priority "urgent"}}danger{{else if eq .Priority "high"}}warning{{else if eq .Priority "medium"}}info{{else}}secondary{{end}}" tabindex="-1">
                                         {{.Priority}}
                                     </span>
                                 </div>
-                                <div class="issue-meta">
-                                    <span class="project">{{.Project}}</span>
+                                <div class="issue-meta" tabindex="-1">
+                                    <span class="project" tabindex="-1">{{.Project}}</span>
                                 </div>
                             </div>
-                            <div class="issue-content">
-                                <div class="description-container">
-                                    <p class="description">{{.Description}}</p>
+                            <div class="issue-content" tabindex="-1">
+                                <div class="description-container" tabindex="-1">
+                                    <p class="description" tabindex="-1">{{.Description}}</p>
                                     <button class="btn btn-link btn-sm toggle-description" onclick="toggleDescription(this)">
-                                        <span class="show-more">Показать больше</span>
-                                        <span class="show-less" style="display: none">Скрыть</span>
+                                        <span class="show-more" tabindex="-1">Показать больше</span>
+                                        <span class="show-less" style="display: none" tabindex="-1">Скрыть</span>
                                     </button>
                                 </div>
-                                <div class="issue-details">
-                                    <div class="time-info">
-                                        <span class="text-muted">
+                                <div class="issue-details" tabindex="-1">
+                                    <div class="time-info" tabindex="-1">
+                                        <span class="text-muted" tabindex="-1">
                                             Назначено: {{.AssignedAt.Format "02.01.2006 15:04"}} 
                                             ({{$duration := timeSince .AssignedAt}}
                                             {{if gt $duration.Days 0}}{{$duration.Days}} {{if eq $duration.Days 1}}день{{else}}дней{{end}}{{end}}
@@ -178,12 +195,12 @@
                                         </span>
                                     </div>
                                     {{if .Point}}
-                                    <div class="points">
-                                        <span class="badge bg-primary">Points: {{.Point}}</span>
+                                    <div class="points" tabindex="-1">
+                                        <span class="badge bg-primary" tabindex="-1">Points: {{.Point}}</span>
                                     </div>
                                     {{end}}
-                                    <div class="status-badge">
-                                        <span class="badge bg-{{if eq .State "In Progress"}}primary{{else if eq .State "Todo"}}warning{{else}}secondary{{end}}">
+                                    <div class="status-badge" tabindex="-1">
+                                        <span class="badge bg-{{if eq .State "In Progress"}}primary{{else if eq .State "Todo"}}warning{{else}}secondary{{end}}" tabindex="-1">
                                             {{.State}}
                                         </span>
                                     </div>
