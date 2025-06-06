@@ -1,6 +1,11 @@
 services:
   app:
     build: .
+    develop:
+      watch:
+        - action: rebuild
+          path: ./
+          target: /app
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
@@ -32,6 +37,7 @@ services:
       PLANE_DB: ${PLANE_DB}
       PLANE_USER: ${PLANE_USER}
       PLANE_PASSWORD: ${PLANE_PASSWORD}
+      TZ: Europe/Moscow
     volumes:
       - ./init-scripts-dev:/docker-entrypoint-initdb.d
       - postgres_data:/var/lib/postgresql/data

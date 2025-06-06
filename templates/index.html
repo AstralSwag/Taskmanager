@@ -63,124 +63,136 @@
             </div>
         </div>
     </div>
-    <div class="container mt-5">
-        <div class="quote-container text-center mb-5">
-            <div class="quote-wrapper">
-                <h1 class="quote-text">{{.Quote.Text}}</h1>
-                <p class="quote-author">— {{.Quote.Author}}</p>
-            </div>
-        </div>
-
-        <!-- Office Attendance Section -->
-        <div class="attendance-section mb-5">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h2>Присутствие в офисе завтра</h2>
-                <div class="attendance-buttons">
-                    <button class="btn btn-outline-success attendance-btn" id="officeBtn" onclick="updateAttendanceStatus(true)">
-                        В офисе
-                    </button>
-                    <button class="btn btn-outline-danger attendance-btn" id="homeBtn" onclick="updateAttendanceStatus(false)">
-                        Дома
-                    </button>
-                </div>
-            </div>
-            <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead>
-                        <tr>
-                            <th>Сотрудник</th>
-                            <th>Статус на сегодня</th>
-                            <th>Статус на завтра</th>
-                            <th>Обновлено</th>
-                        </tr>
-                    </thead>
-                    <tbody id="attendanceTableBody">
-                        <!-- Will be populated by JavaScript -->
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <div class="user-selector">
-            <form method="POST" action="/" id="userForm">
-                <select name="user_id" onchange="this.form.submit(); saveSelectedUser(this.value);">
-                    {{range $id, $name := .Users}}
-                    <option value="{{$id}}" {{if eq $id $.CurrentUserID}}selected{{end}}>{{$name}}</option>
-                    {{end}}
-                </select>
-            </form>
-        </div>
-        <div class="issues-list">
-            <div class="select-all-container">
-                <div class="issue-checkbox">
-                    <input type="checkbox" class="form-check-input" id="select-all" onchange="toggleAllCheckboxes(this)">
-                </div>
-                <div class="select-all-label">
-                    <label for="select-all">Выбрать все</label>
-                </div>
-            </div>
-            {{range .Issues}}
-            <div class="issue-item">
-                <div class="issue-checkbox">
-                    <input type="checkbox" class="form-check-input issue-checkbox" 
-                           data-estimate="{{if .Estimate}}{{.Estimate.Value}}{{else}}0{{end}}"
-                           onchange="updateCounter(this)">
-                    {{if .Estimate}}
-                    <div class="estimate-value">
-                        <span class="badge bg-info">{{.Estimate.Value}}</span>
-                    </div>
-                    {{end}}
-                </div>
-                <div class="issue-content-wrapper">
-                    <div class="issue-header">
-                        <div class="issue-title">
-                            <h5>
-                                <a href="https://plane.it4retail.tech/it4retail/browse/{{.ProjectIdentifier}}-{{.SequenceID}}/" class="issue-id" target="_blank">
-                                    {{.ProjectIdentifier}}-{{.SequenceID}}
-                                </a>
-                                {{.Name}}
-                            </h5>
-                            <span class="badge bg-{{if eq .Priority "urgent"}}danger{{else if eq .Priority "high"}}warning{{else if eq .Priority "medium"}}info{{else}}secondary{{end}}">
-                                {{.Priority}}
-                            </span>
-                        </div>
-                        <div class="issue-meta">
-                            <span class="project">{{.Project}}</span>
-                        </div>
-                    </div>
-                    <div class="issue-content">
-                        <div class="description-container">
-                            <p class="description">{{.Description}}</p>
-                            <button class="btn btn-link btn-sm toggle-description" onclick="toggleDescription(this)">
-                                <span class="show-more">Показать больше</span>
-                                <span class="show-less" style="display: none">Скрыть</span>
-                            </button>
-                        </div>
-                        <div class="issue-details">
-                            <div class="time-info">
-                                <span class="text-muted">
-                                    Назначено: {{.AssignedAt.Format "02.01.2006 15:04"}} 
-                                    ({{$duration := timeSince .AssignedAt}}
-                                    {{if gt $duration.Days 0}}{{$duration.Days}} {{if eq $duration.Days 1}}день{{else}}дней{{end}}{{end}}
-                                    {{if and (gt $duration.Days 0) (gt $duration.Hours 0)}} и {{end}}
-                                    {{if gt $duration.Hours 0}}{{$duration.Hours}} {{if eq $duration.Hours 1}}час{{else}}часов{{end}}{{end}} назад)
-                                </span>
+    <div class="container-fluid mt-5">
+        <div class="row">
+            <!-- Таблица присутствия (слева) -->
+            <div class="col-md-3">
+                <div class="attendance-section">
+                    <h2>Посещаемость</h2>
+                    <div class="attendance-buttons mb-2">
+                        <div class="row g-0">
+                            <div class="col-4"></div>
+                            <div class="col-4 text-center">
+                                <div class="d-flex flex-column align-items-center">
+                                    <button class="btn btn-sm btn-outline-primary mb-1 attendance-btn" onclick="updateAttendance(true, true)">В офисе</button>
+                                    <button class="btn btn-sm btn-outline-secondary attendance-btn" onclick="updateAttendance(false, true)">Дома</button>
+                                </div>
                             </div>
-                            {{if .Point}}
-                            <div class="points">
-                                <span class="badge bg-primary">Points: {{.Point}}</span>
+                            <div class="col-4 text-center">
+                                <div class="d-flex flex-column align-items-center">
+                                    <button class="btn btn-sm btn-outline-primary mb-1 attendance-btn" onclick="updateAttendance(true, false)">В офисе</button>
+                                    <button class="btn btn-sm btn-outline-secondary attendance-btn" onclick="updateAttendance(false, false)">Дома</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Сотрудник</th>
+                                    <th>Сегодня</th>
+                                    <th>Завтра</th>
+                                </tr>
+                            </thead>
+                            <tbody id="attendanceTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Список задач (справа) -->
+            <div class="col-md-9">
+                <div class="quote-container text-center mb-5">
+                    <div class="quote-wrapper">
+                        <h1 class="quote-text">{{.Quote.Text}}</h1>
+                        <p class="quote-author">— {{.Quote.Author}}</p>
+                    </div>
+                </div>
+
+                <div class="user-selector">
+                    <form method="POST" action="/" id="userForm">
+                        <select name="user_id" onchange="this.form.submit(); saveSelectedUser(this.value);">
+                            {{range $id, $name := .Users}}
+                            <option value="{{$id}}" {{if eq $id $.CurrentUserID}}selected{{end}}>{{$name}}</option>
+                            {{end}}
+                        </select>
+                    </form>
+                </div>
+                <div class="issues-list">
+                    <div class="select-all-container">
+                        <div class="issue-checkbox">
+                            <input type="checkbox" class="form-check-input" id="select-all" onchange="toggleAllCheckboxes(this)">
+                        </div>
+                        <div class="select-all-label">
+                            <label for="select-all">Выбрать все</label>
+                        </div>
+                    </div>
+                    {{range .Issues}}
+                    <div class="issue-item">
+                        <div class="issue-checkbox">
+                            <input type="checkbox" class="form-check-input issue-checkbox" 
+                                   data-estimate="{{if .Estimate}}{{.Estimate.Value}}{{else}}0{{end}}"
+                                   onchange="updateCounter(this)">
+                            {{if .Estimate}}
+                            <div class="estimate-value">
+                                <span class="badge bg-info">{{.Estimate.Value}}</span>
                             </div>
                             {{end}}
-                            <div class="status-badge">
-                                <span class="badge bg-{{if eq .State "In Progress"}}primary{{else if eq .State "Todo"}}warning{{else}}secondary{{end}}">
-                                    {{.State}}
-                                </span>
+                        </div>
+                        <div class="issue-content-wrapper">
+                            <div class="issue-header">
+                                <div class="issue-title">
+                                    <h5>
+                                        <a href="https://plane.it4retail.tech/it4retail/browse/{{.ProjectIdentifier}}-{{.SequenceID}}/" class="issue-id" target="_blank">
+                                            {{.ProjectIdentifier}}-{{.SequenceID}}
+                                        </a>
+                                        {{.Name}}
+                                    </h5>
+                                    <span class="badge bg-{{if eq .Priority "urgent"}}danger{{else if eq .Priority "high"}}warning{{else if eq .Priority "medium"}}info{{else}}secondary{{end}}">
+                                        {{.Priority}}
+                                    </span>
+                                </div>
+                                <div class="issue-meta">
+                                    <span class="project">{{.Project}}</span>
+                                </div>
+                            </div>
+                            <div class="issue-content">
+                                <div class="description-container">
+                                    <p class="description">{{.Description}}</p>
+                                    <button class="btn btn-link btn-sm toggle-description" onclick="toggleDescription(this)">
+                                        <span class="show-more">Показать больше</span>
+                                        <span class="show-less" style="display: none">Скрыть</span>
+                                    </button>
+                                </div>
+                                <div class="issue-details">
+                                    <div class="time-info">
+                                        <span class="text-muted">
+                                            Назначено: {{.AssignedAt.Format "02.01.2006 15:04"}} 
+                                            ({{$duration := timeSince .AssignedAt}}
+                                            {{if gt $duration.Days 0}}{{$duration.Days}} {{if eq $duration.Days 1}}день{{else}}дней{{end}}{{end}}
+                                            {{if and (gt $duration.Days 0) (gt $duration.Hours 0)}} и {{end}}
+                                            {{if gt $duration.Hours 0}}{{$duration.Hours}} {{if eq $duration.Hours 1}}час{{else}}часов{{end}}{{end}} назад)
+                                        </span>
+                                    </div>
+                                    {{if .Point}}
+                                    <div class="points">
+                                        <span class="badge bg-primary">Points: {{.Point}}</span>
+                                    </div>
+                                    {{end}}
+                                    <div class="status-badge">
+                                        <span class="badge bg-{{if eq .State "In Progress"}}primary{{else if eq .State "Todo"}}warning{{else}}secondary{{end}}">
+                                            {{.State}}
+                                        </span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
+                    {{end}}
                 </div>
             </div>
-            {{end}}
         </div>
     </div>
     <div class="modal fade" id="myPlanModal" tabindex="-1" aria-hidden="true">
@@ -682,19 +694,9 @@
         // Attendance functions
         function updateAttendanceTable() {
             fetch('/api/attendance')
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-                    return response.json();
-                })
+                .then(response => response.json())
                 .then(data => {
-                    console.log('Received attendance data:', data);
                     const tbody = document.getElementById('attendanceTableBody');
-                    if (!tbody) {
-                        console.error('Table body element not found');
-                        return;
-                    }
                     tbody.innerHTML = '';
                     
                     // Get all users from select
@@ -718,7 +720,6 @@
                             }
                         });
                     }
-                    console.log('Status map:', statusMap);
 
                     // Create rows for all users
                     Object.entries(users).forEach(([userId, userName]) => {
@@ -729,13 +730,11 @@
                         let todayStatusClass = 'bg-warning';
                         let tomorrowStatusText = 'Не указано';
                         let tomorrowStatusClass = 'bg-warning';
-                        let updatedAt = '-';
 
                         if (status) {
                             if (status.TodayStatus) {
                                 todayStatusText = status.TodayStatus.IsOffice ? 'В офисе' : 'Дома';
                                 todayStatusClass = status.TodayStatus.IsOffice ? 'bg-success' : 'bg-danger';
-                                updatedAt = new Date(status.TodayStatus.UpdatedAt).toLocaleString();
                             }
                             if (status.TomorrowStatus) {
                                 tomorrowStatusText = status.TomorrowStatus.IsOffice ? 'В офисе' : 'Дома';
@@ -747,35 +746,61 @@
                             <td>${userName}</td>
                             <td><span class="badge ${todayStatusClass}">${todayStatusText}</span></td>
                             <td><span class="badge ${tomorrowStatusClass}">${tomorrowStatusText}</span></td>
-                            <td>${updatedAt}</td>
                         `;
                         tbody.appendChild(row);
                     });
 
-                    // Update buttons state for current user
+                    // Обновляем состояние кнопок для текущего пользователя
                     const currentUserId = select.value;
                     const currentUserStatus = statusMap.get(currentUserId);
-                    const officeBtn = document.getElementById('officeBtn');
-                    const homeBtn = document.getElementById('homeBtn');
                     
-                    if (officeBtn && homeBtn) {
-                        if (currentUserStatus && currentUserStatus.TomorrowStatus) {
-                            if (currentUserStatus.TomorrowStatus.IsOffice) {
-                                officeBtn.classList.add('active', 'btn-success');
-                                officeBtn.classList.remove('btn-outline-success');
-                                homeBtn.classList.remove('active', 'btn-danger');
-                                homeBtn.classList.add('btn-outline-danger');
+                    // Обновляем кнопки для "сегодня"
+                    const todayOfficeBtn = document.querySelector('button[onclick="updateAttendance(true, true)"]');
+                    const todayHomeBtn = document.querySelector('button[onclick="updateAttendance(false, true)"]');
+                    
+                    if (todayOfficeBtn && todayHomeBtn) {
+                        if (currentUserStatus && currentUserStatus.TodayStatus) {
+                            if (currentUserStatus.TodayStatus.IsOffice) {
+                                todayOfficeBtn.classList.add('active', 'btn-success');
+                                todayOfficeBtn.classList.remove('btn-outline-success');
+                                todayHomeBtn.classList.remove('active', 'btn-danger');
+                                todayHomeBtn.classList.add('btn-outline-danger');
                             } else {
-                                homeBtn.classList.add('active', 'btn-danger');
-                                homeBtn.classList.remove('btn-outline-danger');
-                                officeBtn.classList.remove('active', 'btn-success');
-                                officeBtn.classList.add('btn-outline-success');
+                                todayHomeBtn.classList.add('active', 'btn-danger');
+                                todayHomeBtn.classList.remove('btn-outline-danger');
+                                todayOfficeBtn.classList.remove('active', 'btn-success');
+                                todayOfficeBtn.classList.add('btn-outline-success');
                             }
                         } else {
-                            officeBtn.classList.remove('active', 'btn-success');
-                            officeBtn.classList.add('btn-outline-success');
-                            homeBtn.classList.remove('active', 'btn-danger');
-                            homeBtn.classList.add('btn-outline-danger');
+                            todayOfficeBtn.classList.remove('active', 'btn-success');
+                            todayOfficeBtn.classList.add('btn-outline-success');
+                            todayHomeBtn.classList.remove('active', 'btn-danger');
+                            todayHomeBtn.classList.add('btn-outline-danger');
+                        }
+                    }
+
+                    // Обновляем кнопки для "завтра"
+                    const tomorrowOfficeBtn = document.querySelector('button[onclick="updateAttendance(true, false)"]');
+                    const tomorrowHomeBtn = document.querySelector('button[onclick="updateAttendance(false, false)"]');
+                    
+                    if (tomorrowOfficeBtn && tomorrowHomeBtn) {
+                        if (currentUserStatus && currentUserStatus.TomorrowStatus) {
+                            if (currentUserStatus.TomorrowStatus.IsOffice) {
+                                tomorrowOfficeBtn.classList.add('active', 'btn-success');
+                                tomorrowOfficeBtn.classList.remove('btn-outline-success');
+                                tomorrowHomeBtn.classList.remove('active', 'btn-danger');
+                                tomorrowHomeBtn.classList.add('btn-outline-danger');
+                            } else {
+                                tomorrowHomeBtn.classList.add('active', 'btn-danger');
+                                tomorrowHomeBtn.classList.remove('btn-outline-danger');
+                                tomorrowOfficeBtn.classList.remove('active', 'btn-success');
+                                tomorrowOfficeBtn.classList.add('btn-outline-success');
+                            }
+                        } else {
+                            tomorrowOfficeBtn.classList.remove('active', 'btn-success');
+                            tomorrowOfficeBtn.classList.add('btn-outline-success');
+                            tomorrowHomeBtn.classList.remove('active', 'btn-danger');
+                            tomorrowHomeBtn.classList.add('btn-outline-danger');
                         }
                     }
                 })
@@ -785,7 +810,7 @@
                     if (tbody) {
                         tbody.innerHTML = `
                             <tr>
-                                <td colspan="4" class="text-center text-danger">
+                                <td colspan="3" class="text-center text-danger">
                                     Ошибка при загрузке данных: ${error.message}
                                 </td>
                             </tr>
@@ -794,10 +819,10 @@
                 });
         }
 
-        function updateAttendanceStatus(isOffice) {
+        function updateAttendance(isOffice, isToday) {
             const userId = document.querySelector('select[name="user_id"]').value;
 
-            console.log('Updating attendance status:', { userId, isOffice });
+            console.log('Updating attendance status:', { userId, isOffice, isToday });
 
             fetch('/api/attendance', {
                 method: 'POST',
@@ -806,7 +831,8 @@
                 },
                 body: JSON.stringify({
                     user_id: userId,
-                    is_office: isOffice
+                    is_office: isOffice,
+                    is_today: isToday
                 })
             })
             .then(response => {
@@ -823,15 +849,13 @@
             });
         }
 
-        // Вызываем обновление таблицы при загрузке страницы
+        // Обновляем таблицу при загрузке страницы
         document.addEventListener('DOMContentLoaded', function() {
             updateAttendanceTable();
-            // Обновляем таблицу каждые 30 секунд
-            setInterval(updateAttendanceTable, 30000);
         });
 
-        // Обновляем таблицу перед обновлением страницы
-        window.addEventListener('beforeunload', function() {
+        // Обновляем таблицу при изменении выбранного пользователя
+        document.querySelector('select[name="user_id"]').addEventListener('change', function() {
             updateAttendanceTable();
         });
     </script>

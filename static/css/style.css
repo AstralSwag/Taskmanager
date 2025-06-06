@@ -34,6 +34,13 @@
     border-radius: 20px;
     font-weight: 500;
     font-size: 0.8rem;
+    min-width: 100px !important;
+    width: 100px !important;
+    max-width: 100px !important;
+    display: inline-block !important;
+    text-align: center !important;
+    box-sizing: border-box !important;
+    white-space: nowrap !important;
 }
 
 body {
@@ -120,14 +127,22 @@ body {
     font-weight: 600;
 }
 
-.status-badge {
+.issue-details .status-badge {
     margin-left: auto;
+    min-width: 100px !important;
+    flex-shrink: 0;
 }
 
-.status-badge .badge {
-    font-size: 0.7rem;
-    padding: 2px 4px;
-    opacity: 0.8;
+.issue-details .status-badge .badge {
+    min-width: 100px !important;
+    width: 100px !important;
+    max-width: 100px !important;
+    display: inline-block !important;
+    text-align: center !important;
+    box-sizing: border-box !important;
+    white-space: nowrap !important;
+    padding: 4px 8px !important;
+    font-size: 0.7rem !important;
 }
 
 .issue-meta {
@@ -606,106 +621,289 @@ body {
 }
 
 .quote-container {
-    padding: 1.5rem 0;
-    margin-bottom: 1.5rem;
+    padding: 0.2rem 0;
+    margin: 0 0 0.3rem 0;
     background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-    border-radius: 10px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    border-radius: 0;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
+    width: 100%;
 }
 
 .quote-wrapper {
-    max-width: 600px;
-    margin: 0 auto;
-    padding: 1rem;
+    max-width: 100%;
+    margin: 0;
+    padding: 0.2rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
 }
 
 .quote-text {
     font-family: 'Georgia', serif;
-    font-size: 1.4rem;
-    line-height: 1.4;
+    font-size: 0.8rem;
+    line-height: 1.2;
     color: #2c3e50;
-    margin-bottom: 1rem;
+    margin: 0;
     font-style: italic;
     position: relative;
+    display: inline;
 }
 
 .quote-text::before,
 .quote-text::after {
     content: '"';
-    font-size: 2rem;
+    font-size: 0.9rem;
     color: #6c757d;
     opacity: 0.3;
-    position: absolute;
+    position: relative;
+    display: inline;
 }
 
 .quote-text::before {
-    top: -0.5rem;
-    left: -0.5rem;
+    margin-right: 0.2rem;
 }
 
 .quote-text::after {
-    bottom: -1rem;
-    right: -0.5rem;
+    margin-left: 0.2rem;
 }
 
 .quote-author {
     font-family: 'Arial', sans-serif;
-    font-size: 1rem;
+    font-size: 0.7rem;
     color: #6c757d;
     font-weight: 500;
-    margin-top: 0.5rem;
+    margin: 0;
     position: relative;
-    display: inline-block;
+    display: inline;
 }
 
 .quote-author::before {
-    content: '';
-    display: block;
-    width: 20px;
-    height: 2px;
-    background: #6c757d;
-    margin: 0 auto 0.3rem;
-    opacity: 0.5;
+    content: '—';
+    margin-right: 0.3rem;
 }
 
 /* Attendance Section Styles */
 .attendance-section {
-    background-color: #fff;
+    background-color: white;
     border-radius: 8px;
-    padding: 20px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    padding: 15px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
 .attendance-section h2 {
-    margin: 0;
-    font-size: 1.5rem;
-    color: #333;
+    font-size: 1.2rem;
+    margin-bottom: 15px;
 }
 
 .attendance-buttons {
-    display: flex;
-    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.attendance-buttons .btn {
+    font-size: 0.9rem;
+    padding: 8px 20px;
+    min-width: 110px;
+    width: 110px;
+    white-space: nowrap;
+    border-radius: 12px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    text-align: center;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    border-width: 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .attendance-btn {
-    min-width: 100px;
-    font-weight: 500;
-    transition: all 0.2s ease;
+    display: inline-block;
+    width: 110px !important;
+    min-width: 110px !important;
 }
 
-.attendance-btn:hover {
-    transform: translateY(-1px);
+.attendance-buttons .btn-outline-primary {
+    color: #146c43;
+    border-color: #146c43;
+    background-color: rgba(20, 108, 67, 0.08);
 }
 
-.attendance-btn.active {
-    box-shadow: 0 0 0 0.2rem rgba(0, 0, 0, 0.1);
+.attendance-buttons .btn-outline-primary:hover,
+.attendance-buttons .btn-outline-primary.active {
+    background-color: #146c43;
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(20, 108, 67, 0.4);
+}
+
+.attendance-buttons .btn-outline-secondary {
+    color: #b02a37;
+    border-color: #b02a37;
+    background-color: rgba(176, 42, 55, 0.08);
+}
+
+.attendance-buttons .btn-outline-secondary:hover,
+.attendance-buttons .btn-outline-secondary.active {
+    background-color: #b02a37;
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(176, 42, 55, 0.4);
 }
 
 .attendance-section .table {
-    margin-top: 1rem;
+    margin-bottom: 0;
+}
+
+.attendance-section .table th {
+    font-size: 1rem;
+    padding: 10px;
+    text-align: center;
+    width: 33.33%;
+    font-weight: 600;
+}
+
+.attendance-section .table td {
+    font-size: 0.95rem;
+    padding: 10px;
+    vertical-align: middle;
+}
+
+.attendance-section .table td:not(:first-child) {
+    text-align: center;
 }
 
 .attendance-section .badge {
-    font-size: 0.9em;
-    padding: 0.5em 0.8em;
+    font-size: 0.9rem;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-weight: 500;
+}
+
+.attendance-section .bg-success {
+    background-color: #198754 !important;
+}
+
+.attendance-section .bg-danger {
+    background-color: #dc3545 !important;
+}
+
+.attendance-section .bg-warning {
+    background-color: #ffc107 !important;
+    color: #000 !important;
+}
+
+/* Стили для списка задач */
+.issues-list {
+    background-color: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.issue-item {
+    border-bottom: 1px solid #eee;
+    padding: 15px 0;
+}
+
+.issue-item:last-child {
+    border-bottom: none;
+}
+
+.issue-content-wrapper {
+    margin-left: 10px;
+}
+
+.issue-header {
+    margin-bottom: 10px;
+}
+
+.issue-title h5 {
+    font-size: 1.1rem;
+    margin-bottom: 5px;
+    word-break: break-word;
+}
+
+.issue-title .issue-id {
+    color: #6c757d;
+    text-decoration: none;
+    margin-right: 5px;
+}
+
+.description-container {
+    margin: 10px 0;
+}
+
+.description {
+    font-size: 0.9rem;
+    color: #6c757d;
+    margin-bottom: 5px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.description.expanded {
+    -webkit-line-clamp: unset;
+}
+
+.issue-details {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    font-size: 0.85rem;
+}
+
+/* Стили для цитаты */
+.quote-container {
+    margin-bottom: 30px;
+}
+
+.quote-text {
+    font-size: 1.5rem;
+    color: #495057;
+    margin-bottom: 10px;
+}
+
+.quote-author {
+    font-size: 1rem;
+    color: #6c757d;
+}
+
+/* Стили для селектора пользователя */
+.user-selector {
+    margin-bottom: 20px;
+}
+
+.user-selector select {
+    width: 100%;
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #ced4da;
+}
+
+/* Стили для чекбоксов */
+.select-all-container {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.issue-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .col-md-3 {
+        margin-bottom: 20px;
+    }
+    
+    .issue-details {
+        flex-direction: column;
+        align-items: flex-start;
+    }
 } 

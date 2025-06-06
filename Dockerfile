@@ -23,8 +23,8 @@ FROM alpine:latest
 
 WORKDIR /app
 
-# Устанавливаем необходимые пакеты для работы SQLite
-RUN apk --no-cache add ca-certificates sqlite
+# Устанавливаем необходимые пакеты для работы SQLite и временных зон
+RUN apk --no-cache add ca-certificates sqlite tzdata
 
 # Создаем директорию для данных
 RUN mkdir -p /app/data

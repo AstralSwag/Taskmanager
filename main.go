@@ -17,6 +17,19 @@ import (
 	_ "github.com/lib/pq"
 )
 
+func init() {
+	// Устанавливаем временную зону для всего приложения
+	loc, err := time.LoadLocation("Europe/Moscow")
+	if err != nil {
+		log.Fatalf("Error loading timezone: %v", err)
+	}
+	time.Local = loc
+
+	// Настраиваем формат логов
+	log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
+	log.SetOutput(os.Stdout)
+}
+
 type Issue struct {
 	ID                string
 	Name              string
@@ -437,20 +450,38 @@ func loadUsers() error {
 }
 
 func initAttendanceTable() error {
+	log.Printf("Initializing attendance table...")
+
+	// Проверяем текущее время в PostgreSQL
+	var pgNow time.Time
+	err := db.QueryRow("SELECT CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Moscow'").Scan(&pgNow)
+	if err != nil {
+		log.Printf("Error getting PostgreSQL current time: %v", err)
+	} else {
+		log.Printf("Current time in PostgreSQL during table initialization: %s", pgNow.Format("2006-01-02 15:04:05.000000 -0700"))
+	}
+
 	query := `
 		CREATE TABLE IF NOT EXISTS attendance (
 			id SERIAL PRIMARY KEY,
 			user_id VARCHAR(255) NOT NULL,
 			is_office BOOLEAN NOT NULL DEFAULT false,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			date_part DATE GENERATED ALWAYS AS (DATE(created_at)) STORED,
-			UNIQUE(user_id, date_part)
+			is_today BOOLEAN NOT NULL DEFAULT true,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Moscow',
+			date_part DATE GENERATED ALWAYS AS (DATE(created_at AT TIME ZONE 'Europe/Moscow')) STORED,
+			UNIQUE(user_id, date_part, is_today)
 		);
 		CREATE INDEX IF NOT EXISTS idx_attendance_user_created ON attendance(user_id, created_at DESC);
-		CREATE INDEX IF NOT EXISTS idx_attendance_date_part ON attendance(date_part);
-	`
-	_, err := db.Exec(query)
-	return err
+		CREATE INDEX IF NOT EXISTS idx_attendance_date_part ON attendance(date_part);`
+
+	_, err = db.Exec(query)
+	if err != nil {
+		log.Printf("Error creating attendance table: %v", err)
+		return err
+	}
+
+	log.Printf("Attendance table initialized successfully")
+	return nil
 }
 
 func getLastPlanDate(userID string) (time.Time, error) {
@@ -469,31 +500,79 @@ func getLastPlanDate(userID string) (time.Time, error) {
 
 func getAttendanceStatus() ([]UserAttendance, error) {
 	now := time.Now()
-	today8am := time.Date(now.Year(), now.Month(), now.Day(), 8, 0, 0, 0, now.Location())
-	log.Printf("Getting attendance status at: %v, today 8am: %v", now, today8am)
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	yesterday := today.Add(-24 * time.Hour)
+
+	log.Printf("Current time in Go: %s (Location: %s)", now.Format("2006-01-02 15:04:05.000000 -0700"), now.Location())
+	log.Printf("Today start: %s", today.Format("2006-01-02 15:04:05.000000 -0700"))
+	log.Printf("Yesterday start: %s", yesterday.Format("2006-01-02 15:04:05.000000 -0700"))
 
 	// Получаем все записи посещаемости
 	query := `
 		WITH latest_statuses AS (
-			SELECT DISTINCT ON (user_id, CASE 
-				WHEN created_at < $1 THEN 1  -- до 8:00 сегодня
-				ELSE 2                       -- после 8:00 сегодня
-			END) 
+			-- Получаем последний статус на сегодня (is_today = true) за сегодня
+			SELECT DISTINCT ON (user_id) 
 				user_id,
 				is_office,
-				created_at,
-				CASE 
-					WHEN created_at < $1 THEN 1  -- до 8:00 сегодня
-					ELSE 2                       -- после 8:00 сегодня
-				END as period
+				created_at AT TIME ZONE 'Europe/Moscow' as created_at,
+				true as is_today
 			FROM attendance
-			ORDER BY user_id, period, created_at DESC
+			WHERE date_part = (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Moscow')::date
+			AND is_today = true
+			ORDER BY user_id, created_at DESC
+		),
+		yesterday_statuses AS (
+			-- Получаем последний статус на сегодня (is_today = false) за вчера
+			SELECT DISTINCT ON (user_id)
+				user_id,
+				is_office,
+				created_at AT TIME ZONE 'Europe/Moscow' as created_at,
+				true as is_today
+			FROM attendance
+			WHERE date_part = $1
+			AND is_today = false
+			ORDER BY user_id, created_at DESC
+		),
+		today_statuses AS (
+			-- Объединяем статусы на сегодня, отдавая приоритет сегодняшним
+			SELECT * FROM latest_statuses
+			UNION ALL
+			SELECT * FROM yesterday_statuses y
+			WHERE NOT EXISTS (
+				SELECT 1 FROM latest_statuses l
+				WHERE l.user_id = y.user_id
+			)
+		),
+		tomorrow_statuses AS (
+			-- Получаем последний статус на завтра за сегодня
+			SELECT DISTINCT ON (user_id)
+				user_id,
+				is_office,
+				created_at AT TIME ZONE 'Europe/Moscow' as created_at,
+				false as is_today
+			FROM attendance
+			WHERE date_part = (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Moscow')::date
+			AND is_today = false
+			ORDER BY user_id, created_at DESC
 		)
-		SELECT user_id, is_office, created_at, period
-		FROM latest_statuses
-		ORDER BY user_id, period`
+		SELECT user_id, is_office, is_today, created_at
+		FROM (
+			SELECT * FROM today_statuses
+			UNION ALL
+			SELECT * FROM tomorrow_statuses
+		) all_statuses
+		ORDER BY user_id, is_today`
 
-	rows, err := db.Query(query, today8am)
+	// Проверяем текущее время в PostgreSQL
+	var pgNow time.Time
+	err := db.QueryRow("SELECT CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Moscow'").Scan(&pgNow)
+	if err != nil {
+		log.Printf("Error getting PostgreSQL current time: %v", err)
+	} else {
+		log.Printf("Current time in PostgreSQL: %v", pgNow)
+	}
+
+	rows, err := db.Query(query, yesterday)
 	if err != nil {
 		log.Printf("Error querying attendance records: %v", err)
 		return nil, fmt.Errorf("error querying attendance records: %v", err)
@@ -507,15 +586,15 @@ func getAttendanceStatus() ([]UserAttendance, error) {
 	for rows.Next() {
 		var userID string
 		var isOffice bool
+		var isToday bool
 		var createdAt time.Time
-		var period int
-		if err := rows.Scan(&userID, &isOffice, &createdAt, &period); err != nil {
+		if err := rows.Scan(&userID, &isOffice, &isToday, &createdAt); err != nil {
 			log.Printf("Error scanning attendance record: %v", err)
 			continue
 		}
 
-		log.Printf("Found attendance record - User: %s, IsOffice: %v, CreatedAt: %v, Period: %d",
-			userID, isOffice, createdAt, period)
+		log.Printf("Found attendance record - User: %s, IsOffice: %v, IsToday: %v, CreatedAt: %v",
+			userID, isOffice, isToday, createdAt)
 
 		// Создаем или обновляем запись для пользователя
 		if _, exists := userStatuses[userID]; !exists {
@@ -524,23 +603,16 @@ func getAttendanceStatus() ([]UserAttendance, error) {
 			}
 		}
 
-		// Определяем, к какому периоду относится запись
-		if period == 1 {
-			// Запись до 8:00 сегодня
-			userStatuses[userID].TodayStatus = &AttendanceStatus{
-				UserID:    userID,
-				IsOffice:  isOffice,
-				UpdatedAt: createdAt,
-			}
-			log.Printf("Added today status for user %s: %v", userID, isOffice)
+		status := &AttendanceStatus{
+			UserID:    userID,
+			IsOffice:  isOffice,
+			UpdatedAt: createdAt,
+		}
+
+		if isToday {
+			userStatuses[userID].TodayStatus = status
 		} else {
-			// Запись после 8:00 сегодня
-			userStatuses[userID].TomorrowStatus = &AttendanceStatus{
-				UserID:    userID,
-				IsOffice:  isOffice,
-				UpdatedAt: createdAt,
-			}
-			log.Printf("Added tomorrow status for user %s: %v", userID, isOffice)
+			userStatuses[userID].TomorrowStatus = status
 		}
 	}
 
@@ -559,21 +631,37 @@ func getAttendanceStatus() ([]UserAttendance, error) {
 	return result, nil
 }
 
-func updateAttendanceStatus(userID string, isOffice bool) error {
-	log.Printf("Updating attendance status for user %s: isOffice=%v", userID, isOffice)
+func updateAttendanceStatus(userID string, isOffice bool, isToday bool) error {
+	log.Printf("Updating attendance status for user %s: isOffice=%v, isToday=%v", userID, isOffice, isToday)
+
+	// Проверяем текущее время в PostgreSQL перед обновлением
+	var pgNow time.Time
+	err := db.QueryRow("SELECT CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Moscow'").Scan(&pgNow)
+	if err != nil {
+		log.Printf("Error getting PostgreSQL current time: %v", err)
+	} else {
+		log.Printf("Current time in PostgreSQL before update: %s", pgNow.Format("2006-01-02 15:04:05.000000 -0700"))
+	}
 
 	// Создаем новую запись с текущим временем
 	query := `
-		INSERT INTO attendance (user_id, is_office, created_at)
-		VALUES ($1, $2, $3)`
+		INSERT INTO attendance (user_id, is_office, is_today, created_at)
+		VALUES ($1, $2, $3, CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Moscow')
+		ON CONFLICT (user_id, date_part, is_today) 
+		DO UPDATE SET 
+			is_office = EXCLUDED.is_office,
+			created_at = CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Moscow'
+		RETURNING created_at AT TIME ZONE 'Europe/Moscow'`
 
-	_, err := db.Exec(query, userID, isOffice, time.Now())
+	var createdAt time.Time
+	err = db.QueryRow(query, userID, isOffice, isToday).Scan(&createdAt)
 	if err != nil {
 		log.Printf("Error updating attendance status: %v", err)
 		return fmt.Errorf("error updating attendance status: %v", err)
 	}
 
-	log.Printf("Successfully updated attendance status for user %s", userID)
+	log.Printf("Successfully updated attendance status for user %s. Created at: %s (Location: %s)",
+		userID, createdAt.Format("2006-01-02 15:04:05.000000 -0700"), createdAt.Location())
 	return nil
 }
 
@@ -663,6 +751,7 @@ func main() {
 			var data struct {
 				UserID   string `json:"user_id"`
 				IsOffice bool   `json:"is_office"`
+				IsToday  bool   `json:"is_today"`
 			}
 
 			if err := json.Unmarshal(body, &data); err != nil {
@@ -677,9 +766,10 @@ func main() {
 				return
 			}
 
-			log.Printf("Updating attendance status for user %s: is_office=%v", data.UserID, data.IsOffice)
+			log.Printf("Updating attendance status for user %s: is_office=%v, is_today=%v",
+				data.UserID, data.IsOffice, data.IsToday)
 
-			if err := updateAttendanceStatus(data.UserID, data.IsOffice); err != nil {
+			if err := updateAttendanceStatus(data.UserID, data.IsOffice, data.IsToday); err != nil {
 				log.Printf("Error updating attendance status: %v", err)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
