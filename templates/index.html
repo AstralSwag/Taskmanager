@@ -112,7 +112,11 @@
                         <p class="quote-author">— {{.Quote.Author}}</p>
                     </div>
                 </div>
-
+                {{with $name := index .Users .CurrentUserID}}
+                <div class="current-username text-center mb-4">
+                    <span class="username-display">{{upper $name}}</span>
+                </div>
+                {{end}}
                 <div class="issues-list">
                     <div class="select-all-container">
                         <div class="issue-checkbox">

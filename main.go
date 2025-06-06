@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -388,6 +389,7 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 
 	funcMap := template.FuncMap{
 		"timeSince": timeSince,
+		"upper":     strings.ToUpper,
 	}
 
 	tmpl := template.New("index.html").Funcs(funcMap)
