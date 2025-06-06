@@ -249,6 +249,22 @@
             </div>
         </div>
     </div>
+    <div class="modal fade" id="attendanceModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="attendanceModalTitle">Ты сегодня где?</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="d-flex justify-content-center gap-3">
+                        <button type="button" class="btn btn-success" onclick="handleAttendanceChoice(true)">В офисе</button>
+                        <button type="button" class="btn btn-danger" onclick="handleAttendanceChoice(false)">Дома</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function convertEstimate(estimate) {
@@ -343,62 +359,122 @@
             modal.show();
         }
 
-        function generatePlan() {
-            const checkboxes = document.querySelectorAll('.issue-checkbox input[type="checkbox"]:checked');
-            let totalEstimates = 0;
+        let pendingAttendanceAction = null;
+        let isTodayForAttendance = true;
+
+        function showAttendanceModal(isToday) {
+            isTodayForAttendance = isToday;
+            const modalTitle = document.getElementById('attendanceModalTitle');
+            modalTitle.textContent = isToday ? 'Ты сегодня где?' : 'Ты завтра где?';
+            const modal = new bootstrap.Modal(document.getElementById('attendanceModal'));
+            modal.show();
+        }
+
+        function handleAttendanceChoice(isOffice) {
+            const userId = document.querySelector('.attendance-section').dataset.currentUser;
+            updateAttendance(isOffice, isTodayForAttendance);
+            const modal = bootstrap.Modal.getInstance(document.getElementById('attendanceModal'));
+            modal.hide();
             
-            // Сначала считаем общую сумму estimates
-            checkboxes.forEach(checkbox => {
-                totalEstimates += convertEstimate(checkbox.dataset.estimate);
-            });
-
-            let table = `#План всего estimates = ${totalEstimates}\n\n`;
-            table += "| Estimate points| Проект | ID | Название задачи | Комментарий |\n";
-            table += "|---|---|---|---|---|\n";
-
-            checkboxes.forEach((checkbox, index) => {
-                const issueItem = checkbox.closest('.issue-item');
-                const id = issueItem.querySelector('.issue-id').textContent.trim();
-                const idLink = issueItem.querySelector('.issue-id').href;
-                const name = issueItem.querySelector('.issue-title h5').textContent.replace(id, '').trim();
-                const project = issueItem.querySelector('.project').textContent.trim();
-                const estimate = convertEstimate(checkbox.dataset.estimate);
-                const comment = document.getElementById(`comment-${index}`).value.trim();
-                
-                table += `| ${estimate} | ${project} | [${id}](${idLink}) | ${name} | ${comment} |\n`;
-            });
-
-            document.getElementById('planTable').textContent = table;
-            
-            // Закрываем модальное окно с комментариями
-            const commentsModal = bootstrap.Modal.getInstance(document.getElementById('commentsModal'));
-            if (commentsModal) {
-                commentsModal.hide();
+            if (pendingAttendanceAction) {
+                pendingAttendanceAction();
+                pendingAttendanceAction = null;
             }
-            
-            // Показываем модальное окно с таблицей
-            const planModal = new bootstrap.Modal(document.getElementById('planModal'));
-            planModal.show();
-            
-            // Автоматически сохраняем план
-            fetch('/save-plan', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: `content=${encodeURIComponent(table)}`
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.content) {
-                    document.getElementById('myPlanContent').innerHTML = formatPlanContent(data.content);
-                } else {
-                    console.error('План не найден в ответе:', data);
-                }
-            })
-            .catch(error => {
-                console.error('Ошибка при сохранении плана:', error);
-            });
+        }
+
+        function generatePlan() {
+            pendingAttendanceAction = function() {
+                const modal = bootstrap.Modal.getInstance(document.getElementById('commentsModal'));
+                modal.hide();
+                
+                const checkboxes = document.querySelectorAll('.issue-checkbox input[type="checkbox"]:checked');
+                let totalEstimates = 0;
+                
+                // Сначала считаем общую сумму estimates
+                checkboxes.forEach(checkbox => {
+                    totalEstimates += convertEstimate(checkbox.dataset.estimate);
+                });
+
+                let table = `#План всего estimates = ${totalEstimates}\n\n`;
+                table += "| Estimate points| Проект | ID | Название задачи | Комментарий |\n";
+                table += "|---|---|---|---|---|\n";
+
+                checkboxes.forEach((checkbox, index) => {
+                    const issueItem = checkbox.closest('.issue-item');
+                    const id = issueItem.querySelector('.issue-id').textContent.trim();
+                    const idLink = issueItem.querySelector('.issue-id').href;
+                    const name = issueItem.querySelector('.issue-title h5').textContent.replace(id, '').trim();
+                    const project = issueItem.querySelector('.project').textContent.trim();
+                    const estimate = convertEstimate(checkbox.dataset.estimate);
+                    const comment = document.getElementById(`comment-${index}`).value.trim();
+                    
+                    table += `| ${estimate} | ${project} | [${id}](${idLink}) | ${name} | ${comment} |\n`;
+                });
+
+                document.getElementById('planTable').textContent = table;
+                
+                // Показываем модальное окно с таблицей
+                const planModal = new bootstrap.Modal(document.getElementById('planModal'));
+                planModal.show();
+                
+                // Автоматически сохраняем план
+                fetch('/save-plan', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `content=${encodeURIComponent(table)}`
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.content) {
+                        document.getElementById('myPlanContent').innerHTML = formatPlanContent(data.content);
+                    } else {
+                        console.error('План не найден в ответе:', data);
+                    }
+                })
+                .catch(error => {
+                    console.error('Ошибка при сохранении плана:', error);
+                });
+            };
+            showAttendanceModal(true);
+        }
+
+        function generateFact() {
+            pendingAttendanceAction = function() {
+                const modal = bootstrap.Modal.getInstance(document.getElementById('factModal'));
+                modal.hide();
+                
+                const tasks = document.querySelectorAll('.plan-task');
+                let totalEstimates = 0;
+                
+                // Считаем общую сумму estimates
+                tasks.forEach(task => {
+                    const estimate = convertEstimate(task.querySelector('.task-estimate').textContent);
+                    totalEstimates += estimate;
+                });
+
+                let table = `#Факт всего estimates = ${totalEstimates}\n\n`;
+                table += "| Estimate points| Проект | ID | Название задачи | Факт |\n";
+                table += "|---|---|---|---|---|\n";
+
+                tasks.forEach(task => {
+                    const id = task.dataset.id;
+                    const idLink = task.dataset.link;
+                    const project = task.querySelector('.task-project').textContent.trim();
+                    const name = task.querySelector('.task-name').textContent.trim();
+                    const estimate = task.querySelector('.task-estimate').textContent.trim().replace(' points', '');
+                    const fact = task.querySelector('.fact-comment').value.trim();
+                    
+                    table += `| ${estimate} | ${project} | [${id}](${idLink}) | ${name} | ${fact} |\n`;
+                });
+
+                // Показываем модальное окно с таблицей
+                document.getElementById('factTable').textContent = table;
+                const factTableModal = new bootstrap.Modal(document.getElementById('factTableModal'));
+                factTableModal.show();
+            };
+            showAttendanceModal(false);
         }
 
         function copyPlan() {
@@ -622,37 +698,6 @@
             
             console.log('Сгенерирован HTML:', html);
             return html;
-        }
-
-        function generateFact() {
-            const tasks = document.querySelectorAll('.plan-task');
-            let totalEstimates = 0;
-            
-            // Считаем общую сумму estimates
-            tasks.forEach(task => {
-                const estimate = convertEstimate(task.querySelector('.task-estimate').textContent);
-                totalEstimates += estimate;
-            });
-
-            let table = `#Факт всего estimates = ${totalEstimates}\n\n`;
-            table += "| Estimate points| Проект | ID | Название задачи | Факт |\n";
-            table += "|---|---|---|---|---|\n";
-
-            tasks.forEach(task => {
-                const id = task.dataset.id;
-                const idLink = task.dataset.link;
-                const project = task.querySelector('.task-project').textContent.trim();
-                const name = task.querySelector('.task-name').textContent.trim();
-                const estimate = task.querySelector('.task-estimate').textContent.trim().replace(' points', '');
-                const fact = task.querySelector('.fact-comment').value.trim();
-                
-                table += `| ${estimate} | ${project} | [${id}](${idLink}) | ${name} | ${fact} |\n`;
-            });
-
-            // Показываем модальное окно с таблицей
-            document.getElementById('factTable').textContent = table;
-            const factTableModal = new bootstrap.Modal(document.getElementById('factTableModal'));
-            factTableModal.show();
         }
 
         function copyFact() {
