@@ -983,6 +983,41 @@ func main() {
 		}
 	})
 
+	// Add handler for setting current user
+	http.HandleFunc("/set-current-user", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var data struct {
+			UserID string `json:"user_id"`
+		}
+
+		if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+			log.Printf("Error decoding request body: %v", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if data.UserID == "" {
+			log.Printf("Error: user_id is required")
+			http.Error(w, "user_id is required", http.StatusBadRequest)
+			return
+		}
+
+		log.Printf("Setting current user to: %s", data.UserID)
+		currentUserID = data.UserID
+
+		// Set content type to JSON
+		w.Header().Set("Content-Type", "application/json")
+		// Return success response
+		json.NewEncoder(w).Encode(map[string]string{
+			"status":  "success",
+			"user_id": data.UserID,
+		})
+	})
+
 	http.HandleFunc("/", indexHandler)
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 

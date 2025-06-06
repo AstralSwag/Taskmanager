@@ -67,7 +67,9 @@
         <div class="row">
             <!-- Таблица присутствия (слева) -->
             <div class="col-md-3">
-                <div class="attendance-section">
+                <div class="attendance-section" 
+                     data-current-user="{{.CurrentUserID}}"
+                     data-users='{{range $id, $name := .Users}}{{$id}}:{{$name}},{{end}}'>
                     <h2>Посещаемость</h2>
                     <div class="attendance-buttons mb-2">
                         <div class="row g-0">
@@ -111,15 +113,6 @@
                     </div>
                 </div>
 
-                <div class="user-selector">
-                    <form method="POST" action="/" id="userForm">
-                        <select name="user_id" onchange="this.form.submit(); saveSelectedUser(this.value);">
-                            {{range $id, $name := .Users}}
-                            <option value="{{$id}}" {{if eq $id $.CurrentUserID}}selected{{end}}>{{$name}}</option>
-                            {{end}}
-                        </select>
-                    </form>
-                </div>
                 <div class="issues-list">
                     <div class="select-all-container">
                         <div class="issue-checkbox">
@@ -668,30 +661,50 @@
             });
         }
 
-        // Функция для сохранения выбранного пользователя
-        function saveSelectedUser(userId) {
-            localStorage.setItem('selectedUserId', userId);
-        }
-
-        // Функция для восстановления выбранного пользователя
-        function restoreSelectedUser() {
-            const savedUserId = localStorage.getItem('selectedUserId');
-            if (savedUserId) {
-                const select = document.querySelector('select[name="user_id"]');
-                if (select) {
-                    select.value = savedUserId;
-                    // Если текущий пользователь отличается от сохраненного, отправляем форму
-                    if (select.value !== '{{.CurrentUserID}}') {
-                        select.form.submit();
-                    }
+        function selectUser(userId) {
+            console.log('Starting user selection process for user ID:', userId);
+            
+            // Отправляем POST запрос для обновления текущего пользователя
+            console.log('Sending request to /set-current-user with user ID:', userId);
+            fetch('/set-current-user', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    user_id: userId
+                })
+            })
+            .then(response => {
+                console.log('Received response from /set-current-user:', response.status, response.statusText);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
                 }
-            }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Response data from /set-current-user:', data);
+                // Обновляем data-атрибут с текущим пользователем
+                const attendanceSection = document.querySelector('.attendance-section');
+                console.log('Current attendance section:', attendanceSection);
+                console.log('Current data-current-user value:', attendanceSection.dataset.currentUser);
+                attendanceSection.dataset.currentUser = userId;
+                console.log('Updated data-current-user value:', attendanceSection.dataset.currentUser);
+                
+                // Обновляем таблицу посещаемости
+                console.log('Updating attendance table...');
+                updateAttendanceTable();
+                
+                // Перезагружаем страницу для обновления списка задач
+                window.location.reload();
+            })
+            .catch(error => {
+                console.error('Error in user selection process:', error);
+                console.error('Error stack:', error.stack);
+                alert('Ошибка при обновлении пользователя: ' + error.message);
+            });
         }
 
-        // Вызываем восстановление при загрузке страницы
-        document.addEventListener('DOMContentLoaded', restoreSelectedUser);
-
-        // Attendance functions
         function updateAttendanceTable() {
             fetch('/api/attendance')
                 .then(response => response.json())
@@ -699,18 +712,16 @@
                     const tbody = document.getElementById('attendanceTableBody');
                     tbody.innerHTML = '';
                     
-                    // Get all users from select
-                    const select = document.querySelector('select[name="user_id"]');
-                    if (!select) {
-                        console.error('User select element not found');
-                        return;
-                    }
-
-                    const users = {};
-                    select.querySelectorAll('option').forEach(option => {
-                        users[option.value] = option.textContent;
+                    // Get users map from data attribute and convert it to object
+                    const usersStr = document.querySelector('.attendance-section').dataset.users;
+                    const usersMap = {};
+                    usersStr.split(',').forEach(pair => {
+                        if (pair) {
+                            const [id, name] = pair.split(':');
+                            usersMap[id] = name;
+                        }
                     });
-
+                    
                     // Create a map of user statuses
                     const statusMap = new Map();
                     if (Array.isArray(data)) {
@@ -721,10 +732,15 @@
                         });
                     }
 
+                    // Get current user ID from data attribute
+                    const currentUserId = document.querySelector('.attendance-section').dataset.currentUser;
+
                     // Create rows for all users
-                    Object.entries(users).forEach(([userId, userName]) => {
+                    Object.entries(usersMap).forEach(([userId, userName]) => {
                         const status = statusMap.get(userId);
                         const row = document.createElement('tr');
+                        row.className = `attendance-row ${userId === currentUserId ? 'current-user' : ''}`;
+                        row.onclick = () => selectUser(userId);
                         
                         let todayStatusText = 'Не указано';
                         let todayStatusClass = 'bg-warning';
@@ -751,7 +767,6 @@
                     });
 
                     // Обновляем состояние кнопок для текущего пользователя
-                    const currentUserId = select.value;
                     const currentUserStatus = statusMap.get(currentUserId);
                     
                     // Обновляем кнопки для "сегодня"
@@ -820,7 +835,8 @@
         }
 
         function updateAttendance(isOffice, isToday) {
-            const userId = document.querySelector('select[name="user_id"]').value;
+            // Get current user ID from data attribute
+            const userId = document.querySelector('.attendance-section').dataset.currentUser;
 
             console.log('Updating attendance status:', { userId, isOffice, isToday });
 
@@ -851,11 +867,6 @@
 
         // Обновляем таблицу при загрузке страницы
         document.addEventListener('DOMContentLoaded', function() {
-            updateAttendanceTable();
-        });
-
-        // Обновляем таблицу при изменении выбранного пользователя
-        document.querySelector('select[name="user_id"]').addEventListener('change', function() {
             updateAttendanceTable();
         });
     </script>
