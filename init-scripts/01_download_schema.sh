@@ -16,7 +16,7 @@ TABLES=(
 )
 
 # Формируем команду pg_dump
-pg_dump -h "$PLANE_HOST" \
+PGPASSWORD="$REPLICATOR_PASSWORD" pg_dump -h "$PLANE_HOST" \
         -p "$PLANE_PORT" \
         -U "$REPLICATOR_USER" \
         -d "$PLANE_DB" \
