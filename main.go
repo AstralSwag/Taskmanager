@@ -653,21 +653,24 @@ func updateAttendanceStatus(userID string, isOffice bool, isToday bool) error {
 }
 
 func savePlan(userID string, content string) error {
+	if userID == "" {
+		return fmt.Errorf("user_id is required")
+	}
+	if content == "" {
+		return fmt.Errorf("content is required")
+	}
+
 	log.Printf("Saving plan for user %s", userID)
 
-	// Сначала удаляем старый план
-	_, err := db.Exec(`
-		DELETE FROM plans 
-		WHERE user_id = $1`, userID)
+	// Удаляем старый план пользователя
+	_, err := db.Exec("DELETE FROM plans WHERE user_id = $1", userID)
 	if err != nil {
 		log.Printf("Error deleting old plan for user %s: %v", userID, err)
 		return err
 	}
 
-	// Затем создаем новый план
-	_, err = db.Exec(`
-		INSERT INTO plans (user_id, content)
-		VALUES ($1, $2)`, userID, content)
+	// Создаем новый план
+	_, err = db.Exec("INSERT INTO plans (user_id, content) VALUES ($1, $2)", userID, content)
 	if err != nil {
 		log.Printf("Error saving plan for user %s: %v", userID, err)
 		return err
@@ -678,13 +681,14 @@ func savePlan(userID string, content string) error {
 }
 
 func getPlan(userID string) (string, error) {
+	if userID == "" {
+		return "", fmt.Errorf("user_id is required")
+	}
+
+	log.Printf("Getting plan for user %s", userID)
+
 	var content string
-	err := db.QueryRow(`
-		SELECT content 
-		FROM plans 
-		WHERE user_id = $1 
-		ORDER BY created_at DESC 
-		LIMIT 1`, userID).Scan(&content)
+	err := db.QueryRow("SELECT content FROM plans WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1", userID).Scan(&content)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			log.Printf("No plan found for user %s", userID)
@@ -693,6 +697,8 @@ func getPlan(userID string) (string, error) {
 		log.Printf("Error getting plan for user %s: %v", userID, err)
 		return "", err
 	}
+
+	log.Printf("Successfully retrieved plan for user %s", userID)
 	return content, nil
 }
 
@@ -791,65 +797,63 @@ func main() {
 
 	// Обновляем обработчик для сохранения плана
 	http.HandleFunc("/save-plan", func(w http.ResponseWriter, r *http.Request) {
-		userID := r.URL.Query().Get("user_id")
-		if userID == "" {
-			log.Printf("Error: user_id is required")
-			http.Error(w, "User ID is required", http.StatusBadRequest)
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
-		if err := r.ParseForm(); err != nil {
-			log.Printf("Error parsing form: %v", err)
-			http.Error(w, err.Error(), http.StatusBadRequest)
+		userID := r.FormValue("user_id")
+		if userID == "" {
+			log.Printf("Error: user_id is required")
+			http.Error(w, "user_id is required", http.StatusBadRequest)
 			return
 		}
 
 		content := r.FormValue("content")
 		if content == "" {
 			log.Printf("Error: content is required")
-			http.Error(w, "Content is required", http.StatusBadRequest)
+			http.Error(w, "content is required", http.StatusBadRequest)
 			return
 		}
 
-		log.Printf("Received plan content for user %s: %s", userID, content)
+		log.Printf("Received plan content for user %s", userID)
 
-		if err := savePlan(userID, content); err != nil {
+		err := savePlan(userID, content)
+		if err != nil {
 			log.Printf("Error saving plan: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]string{"content": content}); err != nil {
-			log.Printf("Error encoding response: %v", err)
-			http.Error(w, "Error encoding response", http.StatusInternalServerError)
-			return
-		}
-		log.Printf("Successfully saved and returned plan for user %s", userID)
+		json.NewEncoder(w).Encode(map[string]string{"status": "success"})
 	})
 
 	// Обновляем обработчик для получения плана
 	http.HandleFunc("/get-plan", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
 		userID := r.URL.Query().Get("user_id")
 		if userID == "" {
 			log.Printf("Error: user_id is required")
-			http.Error(w, "User ID is required", http.StatusBadRequest)
+			http.Error(w, "user_id is required", http.StatusBadRequest)
 			return
 		}
+
 		log.Printf("Getting plan for user %s", userID)
+
 		content, err := getPlan(userID)
 		if err != nil {
-			log.Printf("Error getting plan for user %s: %v", userID, err)
+			log.Printf("Error getting plan: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]string{"content": content}); err != nil {
-			log.Printf("Error encoding response: %v", err)
-			http.Error(w, "Error encoding response", http.StatusInternalServerError)
-			return
-		}
-		log.Printf("Successfully returned plan for user %s", userID)
+		json.NewEncoder(w).Encode(map[string]string{"content": content})
 	})
 
 	// Добавляем обработчик для получения новых задач
