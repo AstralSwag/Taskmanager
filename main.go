@@ -670,6 +670,7 @@ func getPlan(userID string) (string, error) {
 		ORDER BY created_at DESC 
 		LIMIT 1`, userID).Scan(&content)
 	if err != nil {
+		log.Printf("Error getting plan for user %s: %v", userID, err)
 		return "", err
 	}
 	return content, nil
@@ -792,12 +793,19 @@ func main() {
 	http.HandleFunc("/get-plan", func(w http.ResponseWriter, r *http.Request) {
 		userID := r.URL.Query().Get("user_id")
 		if userID == "" {
+			log.Printf("Error: user_id is required")
 			http.Error(w, "User ID is required", http.StatusBadRequest)
 			return
 		}
+		log.Printf("Getting plan for user %s", userID)
 		content, err := getPlan(userID)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			log.Printf("Error getting plan for user %s: %v", userID, err)
+			if err == sql.ErrNoRows {
+				http.Error(w, "Plan not found", http.StatusNotFound)
+			} else {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
