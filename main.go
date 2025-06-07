@@ -654,15 +654,25 @@ func updateAttendanceStatus(userID string, isOffice bool, isToday bool) error {
 
 func savePlan(userID string, content string) error {
 	log.Printf("Saving plan for user %s", userID)
+
+	// Сначала удаляем старый план
 	_, err := db.Exec(`
+		DELETE FROM plans 
+		WHERE user_id = $1`, userID)
+	if err != nil {
+		log.Printf("Error deleting old plan for user %s: %v", userID, err)
+		return err
+	}
+
+	// Затем создаем новый план
+	_, err = db.Exec(`
 		INSERT INTO plans (user_id, content)
-		VALUES ($1, $2)
-		ON CONFLICT (user_id, created_at) 
-		DO UPDATE SET content = $2, created_at = CURRENT_TIMESTAMP`, userID, content)
+		VALUES ($1, $2)`, userID, content)
 	if err != nil {
 		log.Printf("Error saving plan for user %s: %v", userID, err)
 		return err
 	}
+
 	log.Printf("Successfully saved plan for user %s", userID)
 	return nil
 }
@@ -787,12 +797,20 @@ func main() {
 			http.Error(w, "User ID is required", http.StatusBadRequest)
 			return
 		}
+
 		if err := r.ParseForm(); err != nil {
 			log.Printf("Error parsing form: %v", err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+
 		content := r.FormValue("content")
+		if content == "" {
+			log.Printf("Error: content is required")
+			http.Error(w, "Content is required", http.StatusBadRequest)
+			return
+		}
+
 		log.Printf("Received plan content for user %s: %s", userID, content)
 
 		if err := savePlan(userID, content); err != nil {
