@@ -653,12 +653,18 @@ func updateAttendanceStatus(userID string, isOffice bool, isToday bool) error {
 }
 
 func savePlan(userID string, content string) error {
+	log.Printf("Saving plan for user %s", userID)
 	_, err := db.Exec(`
 		INSERT INTO plans (user_id, content)
 		VALUES ($1, $2)
-		ON CONFLICT (user_id) 
+		ON CONFLICT (user_id, created_at) 
 		DO UPDATE SET content = $2, created_at = CURRENT_TIMESTAMP`, userID, content)
-	return err
+	if err != nil {
+		log.Printf("Error saving plan for user %s: %v", userID, err)
+		return err
+	}
+	log.Printf("Successfully saved plan for user %s", userID)
+	return nil
 }
 
 func getPlan(userID string) (string, error) {
@@ -670,6 +676,10 @@ func getPlan(userID string) (string, error) {
 		ORDER BY created_at DESC 
 		LIMIT 1`, userID).Scan(&content)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			log.Printf("No plan found for user %s", userID)
+			return "", nil
+		}
 		log.Printf("Error getting plan for user %s: %v", userID, err)
 		return "", err
 	}
@@ -773,20 +783,31 @@ func main() {
 	http.HandleFunc("/save-plan", func(w http.ResponseWriter, r *http.Request) {
 		userID := r.URL.Query().Get("user_id")
 		if userID == "" {
+			log.Printf("Error: user_id is required")
 			http.Error(w, "User ID is required", http.StatusBadRequest)
 			return
 		}
 		if err := r.ParseForm(); err != nil {
+			log.Printf("Error parsing form: %v", err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		content := r.FormValue("content")
+		log.Printf("Received plan content for user %s: %s", userID, content)
+
 		if err := savePlan(userID, content); err != nil {
+			log.Printf("Error saving plan: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"content": content})
+		if err := json.NewEncoder(w).Encode(map[string]string{"content": content}); err != nil {
+			log.Printf("Error encoding response: %v", err)
+			http.Error(w, "Error encoding response", http.StatusInternalServerError)
+			return
+		}
+		log.Printf("Successfully saved and returned plan for user %s", userID)
 	})
 
 	// Обновляем обработчик для получения плана
@@ -801,11 +822,7 @@ func main() {
 		content, err := getPlan(userID)
 		if err != nil {
 			log.Printf("Error getting plan for user %s: %v", userID, err)
-			if err == sql.ErrNoRows {
-				http.Error(w, "Plan not found", http.StatusNotFound)
-			} else {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-			}
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
