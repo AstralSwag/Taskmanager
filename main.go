@@ -557,17 +557,16 @@ func updateAttendanceStatus(userID string, isOffice bool, isToday bool) error {
 		return fmt.Errorf("error loading timezone: %v", err)
 	}
 	now := time.Now().In(moscowLoc)
-	datePart := now.Format("2006-01-02")
 
 	// Обновляем или создаем запись
 	_, err = db.Exec(`
-		INSERT INTO attendance (user_id, is_office, is_today, created_at, date_part)
-		VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT (user_id, date_part, is_today) 
+		INSERT INTO attendance (user_id, is_office, is_today, created_at)
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (user_id, is_today) 
 		DO UPDATE SET 
 			is_office = $2,
 			created_at = $4
-	`, userID, isOffice, isToday, now, datePart)
+	`, userID, isOffice, isToday, now)
 
 	if err != nil {
 		return fmt.Errorf("error updating attendance status: %v", err)
