@@ -600,7 +600,12 @@
             const userId = document.querySelector('.attendance-section').dataset.currentUser;
             // Получаем сохраненный план
             fetch(`/get-plan?user_id=${userId}`)
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Ошибка при получении плана');
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     console.log('Получены данные плана:', data);
                     if (!data || !data.content) {
@@ -610,8 +615,13 @@
                     }
 
                     // Получаем новые задачи
-                    fetch(`/get-new-tasks?user_id=${userId}`)
-                        .then(response => response.json())
+                    return fetch(`/get-new-tasks?user_id=${userId}`)
+                        .then(response => {
+                            if (!response.ok) {
+                                throw new Error('Ошибка при получении новых задач');
+                            }
+                            return response.json();
+                        })
                         .then(newTasks => {
                             console.log('Received new tasks:', newTasks);
                             const formattedContent = formatFactContent(data.content, newTasks);
@@ -620,15 +630,11 @@
                             document.getElementById('factContent').innerHTML = formattedContent;
                             const modal = new bootstrap.Modal(document.getElementById('factModal'));
                             modal.show();
-                        })
-                        .catch(error => {
-                            console.error('Ошибка при загрузке новых задач:', error);
-                            alert('Ошибка при загрузке новых задач');
                         });
                 })
                 .catch(error => {
-                    console.error('Ошибка при загрузке плана:', error);
-                    alert('Ошибка при загрузке плана');
+                    console.error('Ошибка:', error);
+                    alert('Ошибка при загрузке плана: ' + error.message);
                 });
         }
 
