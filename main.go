@@ -486,110 +486,48 @@ func getLastPlanDate(userID string) (time.Time, error) {
 }
 
 func getAttendanceStatus() ([]UserAttendance, error) {
-	now := time.Now()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	yesterday := today.Add(-24 * time.Hour)
-
-	log.Printf("Current time in Go: %s (Location: %s)", now.Format("2006-01-02 15:04:05.000000 -0700"), now.Location())
-	log.Printf("Today start: %s", today.Format("2006-01-02 15:04:05.000000 -0700"))
-	log.Printf("Yesterday start: %s", yesterday.Format("2006-01-02 15:04:05.000000 -0700"))
-
-	// Получаем все записи посещаемости
-	query := `
-		WITH latest_statuses AS (
-			-- Получаем последний статус на сегодня (is_today = true) за сегодня
-			SELECT DISTINCT ON (user_id) 
-				user_id,
-				is_office,
-				created_at AT TIME ZONE 'Europe/Moscow' as created_at,
-				true as is_today
-			FROM attendance
-			WHERE date_part = (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Moscow')::date
-			AND is_today = true
-			ORDER BY user_id, created_at DESC
-		),
-		yesterday_statuses AS (
-			-- Получаем последний статус на сегодня (is_today = false) за вчера
-			SELECT DISTINCT ON (user_id)
-				user_id,
-				is_office,
-				created_at AT TIME ZONE 'Europe/Moscow' as created_at,
-				true as is_today
-			FROM attendance
-			WHERE date_part = $1
-			AND is_today = false
-			ORDER BY user_id, created_at DESC
-		),
-		today_statuses AS (
-			-- Объединяем статусы на сегодня, отдавая приоритет сегодняшним
-			SELECT * FROM latest_statuses
-			UNION ALL
-			SELECT * FROM yesterday_statuses y
-			WHERE NOT EXISTS (
-				SELECT 1 FROM latest_statuses l
-				WHERE l.user_id = y.user_id
-			)
-		),
-		tomorrow_statuses AS (
-			-- Получаем последний статус на завтра за сегодня
-			SELECT DISTINCT ON (user_id)
-				user_id,
-				is_office,
-				created_at AT TIME ZONE 'Europe/Moscow' as created_at,
-				false as is_today
-			FROM attendance
-			WHERE date_part = (CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Moscow')::date
-			AND is_today = false
-			ORDER BY user_id, created_at DESC
-		)
-		SELECT user_id, is_office, is_today, created_at
-		FROM (
-			SELECT * FROM today_statuses
-			UNION ALL
-			SELECT * FROM tomorrow_statuses
-		) all_statuses
-		ORDER BY user_id, is_today`
-
-	// Проверяем текущее время в PostgreSQL
-	var pgNow time.Time
-	err := db.QueryRow("SELECT CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Moscow'").Scan(&pgNow)
+	// Получаем текущее время в московской временной зоне
+	moscowLoc, err := time.LoadLocation("Europe/Moscow")
 	if err != nil {
-		log.Printf("Error getting PostgreSQL current time: %v", err)
-	} else {
-		log.Printf("Current time in PostgreSQL: %v", pgNow)
+		return nil, fmt.Errorf("error loading timezone: %v", err)
 	}
+	now := time.Now().In(moscowLoc)
+	today := now.Format("2006-01-02")
+	tomorrow := now.AddDate(0, 0, 1).Format("2006-01-02")
 
-	rows, err := db.Query(query, yesterday)
+	// Получаем все записи за сегодня и завтра
+	rows, err := db.Query(`
+		SELECT user_id, is_office, is_today, created_at
+		FROM attendance
+		WHERE date_part IN ($1, $2)
+		ORDER BY created_at DESC
+	`, today, tomorrow)
 	if err != nil {
-		log.Printf("Error querying attendance records: %v", err)
-		return nil, fmt.Errorf("error querying attendance records: %v", err)
+		return nil, fmt.Errorf("error querying attendance: %v", err)
 	}
 	defer rows.Close()
 
 	// Создаем карту для хранения статусов пользователей
 	userStatuses := make(map[string]*UserAttendance)
 
-	// Обрабатываем результаты запроса
 	for rows.Next() {
 		var userID string
 		var isOffice bool
 		var isToday bool
 		var createdAt time.Time
+
 		if err := rows.Scan(&userID, &isOffice, &isToday, &createdAt); err != nil {
-			log.Printf("Error scanning attendance record: %v", err)
-			continue
+			return nil, fmt.Errorf("error scanning attendance row: %v", err)
 		}
 
-		log.Printf("Found attendance record - User: %s, IsOffice: %v, IsToday: %v, CreatedAt: %v",
-			userID, isOffice, isToday, createdAt)
-
-		// Создаем или обновляем запись для пользователя
+		// Если пользователя еще нет в карте, создаем новую запись
 		if _, exists := userStatuses[userID]; !exists {
 			userStatuses[userID] = &UserAttendance{
 				UserID: userID,
 			}
 		}
 
+		// Обновляем соответствующий статус
 		status := &AttendanceStatus{
 			UserID:    userID,
 			IsOffice:  isOffice,
@@ -603,86 +541,80 @@ func getAttendanceStatus() ([]UserAttendance, error) {
 		}
 	}
 
-	if err = rows.Err(); err != nil {
-		log.Printf("Error iterating attendance records: %v", err)
-		return nil, fmt.Errorf("error iterating attendance records: %v", err)
-	}
-
 	// Преобразуем карту в слайс
 	result := make([]UserAttendance, 0, len(userStatuses))
 	for _, status := range userStatuses {
 		result = append(result, *status)
 	}
 
-	log.Printf("Returning attendance status for %d users", len(result))
 	return result, nil
 }
 
 func updateAttendanceStatus(userID string, isOffice bool, isToday bool) error {
-	log.Printf("Updating attendance status for user %s: isOffice=%v, isToday=%v", userID, isOffice, isToday)
-
-	// Проверяем текущее время в PostgreSQL перед обновлением
-	var pgNow time.Time
-	err := db.QueryRow("SELECT CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Moscow'").Scan(&pgNow)
+	// Получаем текущее время в московской временной зоне
+	moscowLoc, err := time.LoadLocation("Europe/Moscow")
 	if err != nil {
-		log.Printf("Error getting PostgreSQL current time: %v", err)
-	} else {
-		log.Printf("Current time in PostgreSQL before update: %s", pgNow.Format("2006-01-02 15:04:05.000000 -0700"))
+		return fmt.Errorf("error loading timezone: %v", err)
 	}
+	now := time.Now().In(moscowLoc)
+	datePart := now.Format("2006-01-02")
 
-	// Создаем новую запись с текущим временем
-	query := `
-		INSERT INTO attendance (user_id, is_office, is_today, created_at)
-		VALUES ($1, $2, $3, CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Moscow')
+	// Обновляем или создаем запись
+	_, err = db.Exec(`
+		INSERT INTO attendance (user_id, is_office, is_today, created_at, date_part)
+		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT (user_id, date_part, is_today) 
 		DO UPDATE SET 
-			is_office = EXCLUDED.is_office,
-			created_at = CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Moscow'
-		RETURNING created_at AT TIME ZONE 'Europe/Moscow'`
+			is_office = $2,
+			created_at = $4
+	`, userID, isOffice, isToday, now, datePart)
 
-	var createdAt time.Time
-	err = db.QueryRow(query, userID, isOffice, isToday).Scan(&createdAt)
 	if err != nil {
-		log.Printf("Error updating attendance status: %v", err)
 		return fmt.Errorf("error updating attendance status: %v", err)
 	}
 
-	log.Printf("Successfully updated attendance status for user %s. Created at: %s (Location: %s)",
-		userID, createdAt.Format("2006-01-02 15:04:05.000000 -0700"), createdAt.Location())
 	return nil
 }
 
 func savePlanHandler(w http.ResponseWriter, r *http.Request) {
 	userID := r.URL.Query().Get("user_id")
 	if userID == "" {
-		http.Error(w, "Missing user_id parameter", http.StatusBadRequest)
+		http.Error(w, "user_id is required", http.StatusBadRequest)
 		return
 	}
 
 	content := r.FormValue("content")
 	if content == "" {
-		http.Error(w, "Missing content parameter", http.StatusBadRequest)
+		http.Error(w, "content is required", http.StatusBadRequest)
 		return
 	}
 
-	now := time.Now().UTC()
-	query := `
-		INSERT INTO plans (user_id, date, plan, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT (user_id, date) 
-		DO UPDATE SET plan = $3, updated_at = $5
-		RETURNING plan
-	`
-	var savedContent string
-	err := db.QueryRow(query, userID, now.Format("2006-01-02"), content, now, now).Scan(&savedContent)
+	// Получаем текущую дату в московской временной зоне
+	moscowLoc, err := time.LoadLocation("Europe/Moscow")
 	if err != nil {
-		log.Printf("Error saving plan: %v", err)
-		http.Error(w, "Error saving plan", http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("error loading timezone: %v", err), http.StatusInternalServerError)
+		return
+	}
+	now := time.Now().In(moscowLoc)
+	today := now.Format("2006-01-02")
+
+	// Сохраняем план
+	_, err = db.Exec(`
+		INSERT INTO plans (user_id, date, plan, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $4)
+		ON CONFLICT (user_id, date) 
+		DO UPDATE SET 
+			plan = $3,
+			updated_at = $4
+	`, userID, today, content, now)
+
+	if err != nil {
+		http.Error(w, fmt.Sprintf("error saving plan: %v", err), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"content": savedContent})
+	json.NewEncoder(w).Encode(map[string]string{"content": content})
 }
 
 func getPlanHandler(w http.ResponseWriter, r *http.Request) {
