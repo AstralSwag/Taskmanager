@@ -1000,6 +1000,11 @@ func main() {
 
 	http.HandleFunc("/set-current-user", setCurrentUserHandler)
 
+	// Добавляем обработку favicon.ico
+	http.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "static/favicon.ico")
+	})
+
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 
 	log.Println("Server starting on :8080...")
