@@ -95,7 +95,6 @@ type UserAttendance struct {
 
 var db *sql.DB
 var users map[string]string
-var currentUserID string
 var currentQuote Quote
 var quoteMutex sync.RWMutex
 
@@ -165,7 +164,7 @@ func timeSince(t time.Time) Duration {
 	return Duration{Days: days, Hours: hours}
 }
 
-func getIssues() ([]Issue, error) {
+func getIssues(userID string) ([]Issue, error) {
 	query := `
 		WITH last_assignments AS (
 			SELECT 
@@ -236,7 +235,7 @@ func getIssues() ([]Issue, error) {
 		LIMIT 50
 	`
 
-	rows, err := db.Query(query, currentUserID)
+	rows, err := db.Query(query, userID)
 	if err != nil {
 		log.Printf("Error executing query: %v", err)
 		return nil, err
@@ -364,38 +363,17 @@ func startQuoteScheduler() {
 }
 
 func indexHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method == "POST" {
-		if err := r.ParseForm(); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		if userID := r.FormValue("user_id"); userID != "" {
-			currentUserID = userID
-		}
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+	// Получаем ID пользователя из параметров запроса
+	userID := r.URL.Query().Get("user_id")
+	if userID == "" {
+		http.Error(w, "User ID is required", http.StatusBadRequest)
 		return
 	}
 
-	issues, err := getIssues()
+	issues, err := getIssues(userID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	quoteMutex.RLock()
-	quote := currentQuote
-	quoteMutex.RUnlock()
-	log.Printf("Current quote in indexHandler: %+v", quote)
-
-	funcMap := template.FuncMap{
-		"timeSince": timeSince,
-		"upper":     strings.ToUpper,
-	}
-
-	tmpl := template.New("index.html").Funcs(funcMap)
-	tmpl, err = tmpl.ParseFiles("templates/index.html")
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Printf("Error getting issues: %v", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
@@ -409,10 +387,23 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	data := PageData{
 		Issues:        issues,
 		Users:         users,
-		CurrentUserID: currentUserID,
-		Quote:         quote,
+		CurrentUserID: userID,
+		Quote:         currentQuote,
 	}
 	log.Printf("PageData being sent to template: %+v", data)
+
+	funcMap := template.FuncMap{
+		"timeSince": timeSince,
+		"upper":     strings.ToUpper,
+	}
+
+	tmpl := template.New("index.html").Funcs(funcMap)
+	tmpl, err = tmpl.ParseFiles("templates/index.html")
+	if err != nil {
+		log.Printf("Template execution error: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	if err := tmpl.Execute(w, data); err != nil {
 		log.Printf("Template execution error: %v", err)
@@ -439,12 +430,6 @@ func loadUsers() error {
 
 	if len(users) == 0 {
 		return fmt.Errorf("no users found in users.json")
-	}
-
-	// Устанавливаем первого пользователя как текущего по умолчанию
-	for id := range users {
-		currentUserID = id
-		break
 	}
 
 	log.Printf("Loaded %d users from users.json", len(users))
@@ -785,83 +770,61 @@ func main() {
 
 	// Обновляем обработчик для сохранения плана
 	http.HandleFunc("/save-plan", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		userID := r.URL.Query().Get("user_id")
+		if userID == "" {
+			http.Error(w, "User ID is required", http.StatusBadRequest)
 			return
 		}
-
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		content := r.FormValue("content")
-		if content == "" {
-			http.Error(w, "Content is required", http.StatusBadRequest)
+		if err := savePlan(userID, content); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-
-		log.Printf("Saving plan for user %s", currentUserID)
-
-		if err := savePlan(currentUserID, content); err != nil {
-			log.Printf("Failed to save plan for user %s: %v", currentUserID, err)
-			http.Error(w, "Failed to save plan", http.StatusInternalServerError)
-			return
-		}
-
-		// Return the saved content in the response
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"content": content})
+		http.Redirect(w, r, "/?user_id="+userID, http.StatusSeeOther)
 	})
 
 	// Обновляем обработчик для получения плана
 	http.HandleFunc("/get-plan", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("Getting plan for user %s", currentUserID)
-
-		content, err := getPlan(currentUserID)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				log.Printf("No plan found for user %s", currentUserID)
-				w.Header().Set("Content-Type", "application/json")
-				w.Write([]byte(`{"content": ""}`))
-				return
-			}
-			log.Printf("Error getting plan for user %s: %v", currentUserID, err)
-			http.Error(w, "Failed to get plan", http.StatusInternalServerError)
+		userID := r.URL.Query().Get("user_id")
+		if userID == "" {
+			http.Error(w, "User ID is required", http.StatusBadRequest)
 			return
 		}
-
-		log.Printf("Raw plan content from DB for user %s: %s", currentUserID, content)
-
-		type PlanResponse struct {
-			Content string `json:"content"`
+		content, err := getPlan(userID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
-		response := PlanResponse{Content: content}
-
 		w.Header().Set("Content-Type", "application/json")
-		jsonData, err := json.Marshal(response)
-		if err != nil {
-			log.Printf("Error marshaling JSON for user %s: %v", currentUserID, err)
-			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
-			return
-		}
-		log.Printf("Sending JSON response for user %s: %s", currentUserID, string(jsonData))
-		w.Write(jsonData)
+		json.NewEncoder(w).Encode(map[string]string{"content": content})
 	})
 
 	// Добавляем обработчик для получения новых задач
 	http.HandleFunc("/get-new-tasks", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("Getting new tasks for user %s", currentUserID)
+		userID := r.URL.Query().Get("user_id")
+		if userID == "" {
+			http.Error(w, "User ID is required", http.StatusBadRequest)
+			return
+		}
 
-		// Получаем дату последнего сохраненного плана
-		lastPlanDate, err := getLastPlanDate(currentUserID)
+		log.Printf("Getting new tasks for user %s", userID)
+
+		lastPlanDate, err := getLastPlanDate(userID)
 		if err != nil {
 			if err == sql.ErrNoRows {
-				log.Printf("No plan found for user %s, using current time", currentUserID)
-				lastPlanDate = time.Now()
+				log.Printf("No plan found for user %s, using current time", userID)
+				lastPlanDate = time.Now().AddDate(0, 0, -1)
 			} else {
-				log.Printf("Error getting last plan date for user %s: %v", currentUserID, err)
+				log.Printf("Error getting last plan date for user %s: %v", userID, err)
 				http.Error(w, "Failed to get last plan date", http.StatusInternalServerError)
 				return
 			}
 		}
 
-		// Получаем новые задачи из PostgreSQL
 		query := `
 			WITH last_assignments AS (
 				SELECT 
@@ -883,7 +846,6 @@ func main() {
 					ELSE TRIM(ep.value)
 				END as estimate_value
 			FROM issues i
-			LEFT JOIN states s ON i.state_id = s.id
 			LEFT JOIN projects p ON i.project_id = p.id
 			LEFT JOIN estimate_points ep ON i.estimate_point_id = ep.id
 			INNER JOIN issue_assignees ia ON i.id = ia.issue_id
@@ -891,10 +853,11 @@ func main() {
 			WHERE i.deleted_at IS NULL
 			AND ia.deleted_at IS NULL
 			AND ia.assignee_id = $1
-			AND i.created_at > $2
+			AND (la.last_assigned_at IS NULL OR la.last_assigned_at > $2)
+			ORDER BY i.created_at DESC
 		`
 
-		rows, err := db.Query(query, currentUserID, lastPlanDate)
+		rows, err := db.Query(query, userID, lastPlanDate)
 		if err != nil {
 			log.Printf("Error executing query: %v", err)
 			http.Error(w, "Failed to get new tasks", http.StatusInternalServerError)
@@ -912,29 +875,29 @@ func main() {
 			Link              string `json:"link"`
 		}
 
-		var newTasks []NewTask
+		var tasks []NewTask
 		for rows.Next() {
 			var task NewTask
-			var estimate sql.NullString
+			var estimateValue sql.NullString
 			err := rows.Scan(
 				&task.ID,
 				&task.Name,
 				&task.Project,
 				&task.ProjectIdentifier,
 				&task.SequenceID,
-				&estimate,
+				&estimateValue,
 			)
 			if err != nil {
 				log.Printf("Error scanning row: %v", err)
 				continue
 			}
-
-			task.Estimate = estimate.String
-			task.Link = fmt.Sprintf("https://plane.it4retail.tech/it4retail/browse/%s-%d/", task.ProjectIdentifier, task.SequenceID)
-			newTasks = append(newTasks, task)
+			task.Estimate = estimateValue.String
+			task.Link = fmt.Sprintf("https://it4retail.atlassian.net/browse/%s-%d", task.ProjectIdentifier, task.SequenceID)
+			tasks = append(tasks, task)
 		}
 
-		json.NewEncoder(w).Encode(newTasks)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(tasks)
 	})
 
 	// Обновляем запросы для работы с планами
@@ -985,42 +948,85 @@ func main() {
 		}
 	})
 
-	// Add handler for setting current user
-	http.HandleFunc("/set-current-user", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "POST" {
+			if err := r.ParseForm(); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			userID := r.FormValue("user_id")
+			if userID == "" {
+				http.Error(w, "User ID is required", http.StatusBadRequest)
+				return
+			}
+			http.Redirect(w, r, "/?user_id="+userID, http.StatusSeeOther)
 			return
 		}
-
-		var data struct {
-			UserID string `json:"user_id"`
+		userID := r.URL.Query().Get("user_id")
+		if userID == "" {
+			http.Error(w, "User ID is required", http.StatusBadRequest)
+			return
 		}
+		indexHandler(w, r)
+	})
 
-		if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
-			log.Printf("Error decoding request body: %v", err)
+	http.HandleFunc("/update-attendance", func(w http.ResponseWriter, r *http.Request) {
+		userID := r.URL.Query().Get("user_id")
+		if userID == "" {
+			http.Error(w, "User ID is required", http.StatusBadRequest)
+			return
+		}
+		if err := r.ParseForm(); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-
-		if data.UserID == "" {
-			log.Printf("Error: user_id is required")
-			http.Error(w, "user_id is required", http.StatusBadRequest)
+		isOffice := r.FormValue("is_office") == "true"
+		isToday := r.FormValue("is_today") == "true"
+		if err := updateAttendanceStatus(userID, isOffice, isToday); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-
-		log.Printf("Setting current user to: %s", data.UserID)
-		currentUserID = data.UserID
-
-		// Set content type to JSON
-		w.Header().Set("Content-Type", "application/json")
-		// Return success response
-		json.NewEncoder(w).Encode(map[string]string{
-			"status":  "success",
-			"user_id": data.UserID,
-		})
+		http.Redirect(w, r, "/?user_id="+userID, http.StatusSeeOther)
 	})
 
-	http.HandleFunc("/", indexHandler)
+	http.HandleFunc("/get-attendance", func(w http.ResponseWriter, r *http.Request) {
+		userID := r.URL.Query().Get("user_id")
+		if userID == "" {
+			http.Error(w, "User ID is required", http.StatusBadRequest)
+			return
+		}
+		status, err := getAttendanceStatus()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(status)
+	})
+
+	http.HandleFunc("/get-last-plan-date", func(w http.ResponseWriter, r *http.Request) {
+		userID := r.URL.Query().Get("user_id")
+		if userID == "" {
+			http.Error(w, "User ID is required", http.StatusBadRequest)
+			return
+		}
+		date, err := getLastPlanDate(userID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"date": date.Format(time.RFC3339)})
+	})
+
+	http.HandleFunc("/get-quote", func(w http.ResponseWriter, r *http.Request) {
+		quoteMutex.RLock()
+		quote := currentQuote
+		quoteMutex.RUnlock()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(quote)
+	})
+
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 
 	log.Println("Server starting on :8080...")

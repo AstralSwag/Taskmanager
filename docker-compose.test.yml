@@ -1,6 +1,11 @@
 services:
   app-test:
     build: .
+    develop:
+      watch:
+        - action: rebuild
+          path: ./
+          target: /app
     environment:
       - DB_HOST=postgres-test
       - DB_PORT=5432
