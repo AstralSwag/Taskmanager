@@ -431,11 +431,7 @@
 
                 document.getElementById('planTable').textContent = table;
                 
-                // Показываем модальное окно с таблицей
-                const planModal = new bootstrap.Modal(document.getElementById('planModal'));
-                planModal.show();
-                
-                // Автоматически сохраняем план
+                // Сначала сохраняем план
                 fetch('/save-plan?user_id=' + userId, {
                     method: 'POST',
                     headers: {
@@ -447,12 +443,17 @@
                 .then(data => {
                     if (data.content) {
                         document.getElementById('myPlanContent').innerHTML = formatPlanContent(data.content);
+                        // Показываем модальное окно с таблицей только после успешного сохранения
+                        const planModal = new bootstrap.Modal(document.getElementById('planModal'));
+                        planModal.show();
                     } else {
                         console.error('План не найден в ответе:', data);
+                        alert('Ошибка при сохранении плана');
                     }
                 })
                 .catch(error => {
                     console.error('Ошибка при сохранении плана:', error);
+                    alert('Ошибка при сохранении плана');
                 });
             };
             showAttendanceModal(true);
