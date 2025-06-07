@@ -656,8 +656,8 @@ func savePlan(userID string, content string) error {
 	_, err := db.Exec(`
 		INSERT INTO plans (user_id, content)
 		VALUES ($1, $2)
-		ON CONFLICT (user_id, created_at) 
-		DO UPDATE SET content = $2`, userID, content)
+		ON CONFLICT (user_id) 
+		DO UPDATE SET content = $2, created_at = CURRENT_TIMESTAMP`, userID, content)
 	return err
 }
 
@@ -784,7 +784,8 @@ func main() {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		http.Redirect(w, r, "/?user_id="+userID, http.StatusSeeOther)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"content": content})
 	})
 
 	// Обновляем обработчик для получения плана

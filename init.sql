@@ -4,4 +4,5 @@ CREATE TABLE IF NOT EXISTS plans (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     content TEXT NOT NULL,
     UNIQUE(user_id)
-); 
+);
+CREATE INDEX IF NOT EXISTS idx_plans_user_created ON plans(user_id, created_at DESC); 
