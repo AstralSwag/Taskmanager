@@ -762,11 +762,8 @@ func setCurrentUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
-		"status":  "success",
-		"message": "Current user updated successfully",
-	})
+	// Перенаправляем на главную страницу с новым user_id
+	http.Redirect(w, r, "/?user_id="+request.UserID, http.StatusSeeOther)
 }
 
 func main() {

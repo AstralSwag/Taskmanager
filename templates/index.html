@@ -760,23 +760,8 @@
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
-                return response.json();
-            })
-            .then(data => {
-                console.log('Response data from /set-current-user:', data);
-                // Обновляем data-атрибут с текущим пользователем
-                const attendanceSection = document.querySelector('.attendance-section');
-                console.log('Current attendance section:', attendanceSection);
-                console.log('Current data-current-user value:', attendanceSection.dataset.currentUser);
-                attendanceSection.dataset.currentUser = userId;
-                console.log('Updated data-current-user value:', attendanceSection.dataset.currentUser);
-                
-                // Обновляем таблицу посещаемости
-                console.log('Updating attendance table...');
-                updateAttendanceTable();
-                
-                // Перезагружаем страницу для обновления списка задач
-                window.location.reload();
+                // Следуем за перенаправлением
+                window.location.href = response.url;
             })
             .catch(error => {
                 console.error('Error in user selection process:', error);
