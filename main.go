@@ -454,7 +454,7 @@ func initAttendanceTable() error {
 			user_id VARCHAR(255) NOT NULL,
 			is_office BOOLEAN NOT NULL DEFAULT false,
 			is_today BOOLEAN NOT NULL DEFAULT true,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Moscow',
+			created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			date_part DATE GENERATED ALWAYS AS (DATE(created_at AT TIME ZONE 'Europe/Moscow')) STORED,
 			UNIQUE(user_id, date_part, is_today)
 		);
@@ -652,54 +652,157 @@ func updateAttendanceStatus(userID string, isOffice bool, isToday bool) error {
 	return nil
 }
 
-func savePlan(userID string, content string) error {
+func savePlanHandler(w http.ResponseWriter, r *http.Request) {
+	userID := r.URL.Query().Get("user_id")
 	if userID == "" {
-		return fmt.Errorf("user_id is required")
+		http.Error(w, "Missing user_id parameter", http.StatusBadRequest)
+		return
 	}
+
+	content := r.FormValue("content")
 	if content == "" {
-		return fmt.Errorf("content is required")
+		http.Error(w, "Missing content parameter", http.StatusBadRequest)
+		return
 	}
 
-	log.Printf("Saving plan for user %s", userID)
-
-	// Удаляем старый план пользователя
-	_, err := db.Exec("DELETE FROM plans WHERE user_id = $1", userID)
+	now := time.Now().UTC()
+	query := `
+		INSERT INTO plans (user_id, date, plan, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5)
+		ON CONFLICT (user_id, date) 
+		DO UPDATE SET plan = $3, updated_at = $5
+		RETURNING plan
+	`
+	var savedContent string
+	err := db.QueryRow(query, userID, now.Format("2006-01-02"), content, now, now).Scan(&savedContent)
 	if err != nil {
-		log.Printf("Error deleting old plan for user %s: %v", userID, err)
-		return err
+		log.Printf("Error saving plan: %v", err)
+		http.Error(w, "Error saving plan", http.StatusInternalServerError)
+		return
 	}
 
-	// Создаем новый план
-	_, err = db.Exec("INSERT INTO plans (user_id, content) VALUES ($1, $2)", userID, content)
-	if err != nil {
-		log.Printf("Error saving plan for user %s: %v", userID, err)
-		return err
-	}
-
-	log.Printf("Successfully saved plan for user %s", userID)
-	return nil
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"content": savedContent})
 }
 
-func getPlan(userID string) (string, error) {
+func getPlanHandler(w http.ResponseWriter, r *http.Request) {
+	userID := r.URL.Query().Get("user_id")
 	if userID == "" {
-		return "", fmt.Errorf("user_id is required")
+		http.Error(w, "Missing user_id parameter", http.StatusBadRequest)
+		return
 	}
 
-	log.Printf("Getting plan for user %s", userID)
-
-	var content string
-	err := db.QueryRow("SELECT content FROM plans WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1", userID).Scan(&content)
+	today := time.Now().UTC().Format("2006-01-02")
+	query := `
+		SELECT plan 
+		FROM plans 
+		WHERE user_id = $1 AND date = $2
+	`
+	var plan string
+	err := db.QueryRow(query, userID, today).Scan(&plan)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			log.Printf("No plan found for user %s", userID)
-			return "", nil
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{"content": ""})
+			return
 		}
-		log.Printf("Error getting plan for user %s: %v", userID, err)
-		return "", err
+		log.Printf("Error getting plan: %v", err)
+		http.Error(w, "Error getting plan", http.StatusInternalServerError)
+		return
 	}
 
-	log.Printf("Successfully retrieved plan for user %s", userID)
-	return content, nil
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"content": plan})
+}
+
+func getNewTasksHandler(w http.ResponseWriter, r *http.Request) {
+	userID := r.URL.Query().Get("user_id")
+	if userID == "" {
+		http.Error(w, "Missing user_id parameter", http.StatusBadRequest)
+		return
+	}
+
+	lastPlanDate, err := getLastPlanDate(userID)
+	if err != nil {
+		log.Printf("Error getting last plan date: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	query := `
+		WITH last_assignments AS (
+			SELECT 
+				issue_id,
+				MAX(created_at) as last_assigned_at
+			FROM issue_assignees
+			WHERE deleted_at IS NULL
+			AND assignee_id = $1
+			GROUP BY issue_id
+		)
+		SELECT DISTINCT
+			i.id,
+			i.name,
+			p.name as project,
+			p.identifier as project_identifier,
+			i.sequence_id,
+			i.created_at,
+			CASE 
+				WHEN TRIM(ep.value) = '0' OR ep.value IS NULL THEN '0.5'
+				ELSE TRIM(ep.value)
+			END as estimate_value
+		FROM issues i
+		LEFT JOIN projects p ON i.project_id = p.id
+		LEFT JOIN estimate_points ep ON i.estimate_point_id = ep.id
+		INNER JOIN issue_assignees ia ON i.id = ia.issue_id
+		LEFT JOIN last_assignments la ON i.id = la.issue_id
+		WHERE i.deleted_at IS NULL
+		AND ia.deleted_at IS NULL
+		AND ia.assignee_id = $1
+		AND (la.last_assigned_at IS NULL OR la.last_assigned_at > $2)
+		ORDER BY i.created_at DESC
+	`
+
+	rows, err := db.Query(query, userID, lastPlanDate)
+	if err != nil {
+		log.Printf("Error executing query: %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	type NewTask struct {
+		ID                string    `json:"id"`
+		Name              string    `json:"name"`
+		Project           string    `json:"project"`
+		ProjectIdentifier string    `json:"project_identifier"`
+		SequenceID        int       `json:"sequence_id"`
+		CreatedAt         time.Time `json:"created_at"`
+		Estimate          string    `json:"estimate"`
+		Link              string    `json:"link"`
+	}
+
+	var tasks []NewTask
+	for rows.Next() {
+		var task NewTask
+		err := rows.Scan(
+			&task.ID,
+			&task.Name,
+			&task.Project,
+			&task.ProjectIdentifier,
+			&task.SequenceID,
+			&task.CreatedAt,
+			&task.Estimate,
+		)
+		if err != nil {
+			log.Printf("Error scanning row: %v", err)
+			continue
+		}
+		task.Link = fmt.Sprintf("https://plane.it4retail.tech/it4retail/browse/%s-%d/", task.ProjectIdentifier, task.SequenceID)
+		tasks = append(tasks, task)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(tasks)
 }
 
 func main() {
@@ -796,162 +899,13 @@ func main() {
 	})
 
 	// Обновляем обработчик для сохранения плана
-	http.HandleFunc("/save-plan", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		userID := r.FormValue("user_id")
-		if userID == "" {
-			log.Printf("Error: user_id is required")
-			http.Error(w, "user_id is required", http.StatusBadRequest)
-			return
-		}
-
-		content := r.FormValue("content")
-		if content == "" {
-			log.Printf("Error: content is required")
-			http.Error(w, "content is required", http.StatusBadRequest)
-			return
-		}
-
-		log.Printf("Received plan content for user %s", userID)
-
-		err := savePlan(userID, content)
-		if err != nil {
-			log.Printf("Error saving plan: %v", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "success"})
-	})
+	http.HandleFunc("/save-plan", savePlanHandler)
 
 	// Обновляем обработчик для получения плана
-	http.HandleFunc("/get-plan", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		userID := r.URL.Query().Get("user_id")
-		if userID == "" {
-			log.Printf("Error: user_id is required")
-			http.Error(w, "user_id is required", http.StatusBadRequest)
-			return
-		}
-
-		log.Printf("Getting plan for user %s", userID)
-
-		content, err := getPlan(userID)
-		if err != nil {
-			log.Printf("Error getting plan: %v", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"content": content})
-	})
+	http.HandleFunc("/get-plan", getPlanHandler)
 
 	// Добавляем обработчик для получения новых задач
-	http.HandleFunc("/get-new-tasks", func(w http.ResponseWriter, r *http.Request) {
-		userID := r.URL.Query().Get("user_id")
-		if userID == "" {
-			http.Error(w, "User ID is required", http.StatusBadRequest)
-			return
-		}
-
-		log.Printf("Getting new tasks for user %s", userID)
-
-		lastPlanDate, err := getLastPlanDate(userID)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				log.Printf("No plan found for user %s, using current time", userID)
-				lastPlanDate = time.Now().AddDate(0, 0, -1)
-			} else {
-				log.Printf("Error getting last plan date for user %s: %v", userID, err)
-				http.Error(w, "Failed to get last plan date", http.StatusInternalServerError)
-				return
-			}
-		}
-
-		query := `
-			WITH last_assignments AS (
-				SELECT 
-					issue_id,
-					MAX(created_at) as last_assigned_at
-				FROM issue_assignees
-				WHERE deleted_at IS NULL
-				AND assignee_id = $1
-				GROUP BY issue_id
-			)
-			SELECT DISTINCT
-				i.id,
-				i.name,
-				p.name as project,
-				p.identifier as project_identifier,
-				i.sequence_id,
-				CASE 
-					WHEN TRIM(ep.value) = '0' OR ep.value IS NULL THEN '0.5'
-					ELSE TRIM(ep.value)
-				END as estimate_value
-			FROM issues i
-			LEFT JOIN projects p ON i.project_id = p.id
-			LEFT JOIN estimate_points ep ON i.estimate_point_id = ep.id
-			INNER JOIN issue_assignees ia ON i.id = ia.issue_id
-			LEFT JOIN last_assignments la ON i.id = la.issue_id
-			WHERE i.deleted_at IS NULL
-			AND ia.deleted_at IS NULL
-			AND ia.assignee_id = $1
-			AND (la.last_assigned_at IS NULL OR la.last_assigned_at > $2)
-			ORDER BY i.created_at DESC
-		`
-
-		rows, err := db.Query(query, userID, lastPlanDate)
-		if err != nil {
-			log.Printf("Error executing query: %v", err)
-			http.Error(w, "Failed to get new tasks", http.StatusInternalServerError)
-			return
-		}
-		defer rows.Close()
-
-		type NewTask struct {
-			ID                string `json:"id"`
-			Name              string `json:"name"`
-			Project           string `json:"project"`
-			ProjectIdentifier string `json:"project_identifier"`
-			SequenceID        int    `json:"sequence_id"`
-			Estimate          string `json:"estimate"`
-			Link              string `json:"link"`
-		}
-
-		var tasks []NewTask
-		for rows.Next() {
-			var task NewTask
-			var estimateValue sql.NullString
-			err := rows.Scan(
-				&task.ID,
-				&task.Name,
-				&task.Project,
-				&task.ProjectIdentifier,
-				&task.SequenceID,
-				&estimateValue,
-			)
-			if err != nil {
-				log.Printf("Error scanning row: %v", err)
-				continue
-			}
-			task.Estimate = estimateValue.String
-			task.Link = fmt.Sprintf("https://it4retail.atlassian.net/browse/%s-%d", task.ProjectIdentifier, task.SequenceID)
-			tasks = append(tasks, task)
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(tasks)
-	})
+	http.HandleFunc("/get-new-tasks", getNewTasksHandler)
 
 	// Обновляем запросы для работы с планами
 	http.HandleFunc("/api/plans", func(w http.ResponseWriter, r *http.Request) {

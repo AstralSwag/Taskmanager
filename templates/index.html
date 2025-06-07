@@ -400,6 +400,7 @@
         }
 
         function generatePlan() {
+            const userId = document.querySelector('.attendance-section').dataset.currentUser;
             pendingAttendanceAction = function() {
                 const modal = bootstrap.Modal.getInstance(document.getElementById('commentsModal'));
                 modal.hide();
@@ -435,13 +436,12 @@
                 planModal.show();
                 
                 // Автоматически сохраняем план
-                const userId = document.querySelector('.attendance-section').dataset.currentUser;
-                fetch('/save-plan', {
+                fetch('/save-plan?user_id=' + userId, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
                     },
-                    body: `content=${encodeURIComponent(table)}&user_id=${userId}`
+                    body: `content=${encodeURIComponent(table)}`
                 })
                 .then(response => response.json())
                 .then(data => {
@@ -459,6 +459,7 @@
         }
 
         function generateFact() {
+            const userId = document.querySelector('.attendance-section').dataset.currentUser;
             pendingAttendanceAction = function() {
                 const modal = bootstrap.Modal.getInstance(document.getElementById('factModal'));
                 modal.hide();
@@ -542,7 +543,7 @@
 
         function showMyPlan() {
             const userId = document.querySelector('.attendance-section').dataset.currentUser;
-            fetch(`/get-plan?user_id=${userId}`)
+            fetch('/get-plan?user_id=' + userId)
                 .then(response => response.json())
                 .then(data => {
                     if (data.content) {
@@ -598,20 +599,9 @@
 
         function showFactModal() {
             const userId = document.querySelector('.attendance-section').dataset.currentUser;
-            if (!userId) {
-                console.error('User ID not found');
-                alert('Ошибка: не найден ID пользователя');
-                return;
-            }
-
             // Получаем сохраненный план
-            fetch(`/get-plan?user_id=${userId}`)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error(`Ошибка при получении плана: ${response.status}`);
-                    }
-                    return response.json();
-                })
+            fetch('/get-plan?user_id=' + userId)
+                .then(response => response.json())
                 .then(data => {
                     console.log('Получены данные плана:', data);
                     if (!data || !data.content) {
@@ -621,13 +611,8 @@
                     }
 
                     // Получаем новые задачи
-                    return fetch(`/get-new-tasks?user_id=${userId}`)
-                        .then(response => {
-                            if (!response.ok) {
-                                throw new Error('Ошибка при получении новых задач');
-                            }
-                            return response.json();
-                        })
+                    fetch('/get-new-tasks?user_id=' + userId)
+                        .then(response => response.json())
                         .then(newTasks => {
                             console.log('Received new tasks:', newTasks);
                             const formattedContent = formatFactContent(data.content, newTasks);
@@ -636,11 +621,15 @@
                             document.getElementById('factContent').innerHTML = formattedContent;
                             const modal = new bootstrap.Modal(document.getElementById('factModal'));
                             modal.show();
+                        })
+                        .catch(error => {
+                            console.error('Ошибка при загрузке новых задач:', error);
+                            alert('Ошибка при загрузке новых задач');
                         });
                 })
                 .catch(error => {
-                    console.error('Ошибка:', error);
-                    alert('Ошибка при загрузке плана: ' + error.message);
+                    console.error('Ошибка при загрузке плана:', error);
+                    alert('Ошибка при загрузке плана');
                 });
         }
 
@@ -702,8 +691,6 @@
                             </div>
                         `;
                         console.log('Добавлена задача в HTML:', id);
-                    } else {
-                        console.warn('Пропущена строка с недостаточным количеством ячеек:', cells);
                     }
                 }
             }
@@ -728,11 +715,6 @@
                         </div>
                     `;
                 });
-            }
-            
-            if (!html) {
-                console.error('Не удалось сгенерировать HTML из плана');
-                return '';
             }
             
             console.log('Сгенерирован HTML:', html);
@@ -762,24 +744,49 @@
         function selectUser(userId) {
             console.log('Starting user selection process for user ID:', userId);
             
-            // Обновляем data-атрибут с текущим пользователем
-            const attendanceSection = document.querySelector('.attendance-section');
-            console.log('Current attendance section:', attendanceSection);
-            console.log('Current data-current-user value:', attendanceSection.dataset.currentUser);
-            attendanceSection.dataset.currentUser = userId;
-            console.log('Updated data-current-user value:', attendanceSection.dataset.currentUser);
-            
-            // Обновляем таблицу посещаемости
-            console.log('Updating attendance table...');
-            updateAttendanceTable();
-            
-            // Перезагружаем страницу для обновления списка задач
-            window.location.href = `/?user_id=${userId}`;
+            // Отправляем POST запрос для обновления текущего пользователя
+            console.log('Sending request to /set-current-user with user ID:', userId);
+            fetch('/set-current-user', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    user_id: userId
+                })
+            })
+            .then(response => {
+                console.log('Received response from /set-current-user:', response.status, response.statusText);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Response data from /set-current-user:', data);
+                // Обновляем data-атрибут с текущим пользователем
+                const attendanceSection = document.querySelector('.attendance-section');
+                console.log('Current attendance section:', attendanceSection);
+                console.log('Current data-current-user value:', attendanceSection.dataset.currentUser);
+                attendanceSection.dataset.currentUser = userId;
+                console.log('Updated data-current-user value:', attendanceSection.dataset.currentUser);
+                
+                // Обновляем таблицу посещаемости
+                console.log('Updating attendance table...');
+                updateAttendanceTable();
+                
+                // Перезагружаем страницу для обновления списка задач
+                window.location.reload();
+            })
+            .catch(error => {
+                console.error('Error in user selection process:', error);
+                console.error('Error stack:', error.stack);
+                alert('Ошибка при обновлении пользователя: ' + error.message);
+            });
         }
 
         function updateAttendanceTable() {
-            const userId = document.querySelector('.attendance-section').dataset.currentUser;
-            fetch(`/api/attendance?user_id=${userId}`)
+            fetch('/api/attendance')
                 .then(response => response.json())
                 .then(data => {
                     const tbody = document.getElementById('attendanceTableBody');
