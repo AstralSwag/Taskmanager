@@ -955,15 +955,35 @@ func main() {
 			return
 		}
 
-		// Проверяем наличие cookie с выбранным пользователем
+		// Получаем user_id из URL
+		userID := r.URL.Query().Get("user_id")
+
+		// Если user_id указан в URL, показываем страницу пользователя
+		if userID != "" {
+			indexHandler(w, r)
+			return
+		}
+
+		// Если user_id не указан, проверяем cookie
 		if cookie, err := r.Cookie("selected_user"); err == nil {
 			// Если cookie найден, перенаправляем на страницу пользователя
 			http.Redirect(w, r, "/?user_id="+cookie.Value, http.StatusSeeOther)
 			return
 		}
 
-		// Если cookie не найден, показываем страницу выбора пользователя
-		indexHandler(w, r)
+		// Если ни user_id, ни cookie не найдены, показываем страницу выбора пользователя
+		tmpl := template.New("select_user.html")
+		tmpl, err := tmpl.ParseFiles("templates/select_user.html")
+		if err != nil {
+			log.Printf("Template execution error: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		if err := tmpl.Execute(w, users); err != nil {
+			log.Printf("Template execution error: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 	})
 
 	http.HandleFunc("/update-attendance", func(w http.ResponseWriter, r *http.Request) {
