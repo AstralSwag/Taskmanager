@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Выбор пользователя - PlanFact</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .user-select-container {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            max-width: 500px;
+            width: 90%;
+        }
+        .user-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .user-item {
+            padding: 1rem;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .user-item:hover {
+            background-color: #f8f9fa;
+            transform: translateY(-2px);
+        }
+        .user-item.selected {
+            background-color: #e9ecef;
+            border-color: #0d6efd;
+        }
+    </style>
+</head>
+<body>
+    <div class="user-select-container">
+        <h2 class="text-center mb-4">Выберите пользователя</h2>
+        <div class="user-list">
+            {{range $id, $name := .}}
+            <div class="user-item" onclick="selectUser('{{$id}}')">
+                {{$name}}
+            </div>
+            {{end}}
+        </div>
+    </div>
+
+    <script>
+        function selectUser(userId) {
+            fetch('/set-current-user', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    user_id: userId
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                // Следуем за перенаправлением
+                window.location.href = response.url;
+            })
+            .catch(error => {
+                console.error('Error in user selection process:', error);
+                alert('Ошибка при выборе пользователя: ' + error.message);
+            });
+        }
+    </script>
+</body>
+</html> 

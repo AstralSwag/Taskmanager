@@ -366,7 +366,19 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 	// Получаем ID пользователя из параметров запроса
 	userID := r.URL.Query().Get("user_id")
 	if userID == "" {
-		http.Error(w, "User ID is required", http.StatusBadRequest)
+		// Если user_id не указан, показываем страницу выбора пользователя
+		tmpl := template.New("select_user.html")
+		tmpl, err := tmpl.ParseFiles("templates/select_user.html")
+		if err != nil {
+			log.Printf("Template execution error: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		if err := tmpl.Execute(w, users); err != nil {
+			log.Printf("Template execution error: %v", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 		return
 	}
 
@@ -762,6 +774,18 @@ func setCurrentUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Устанавливаем cookie с выбранным пользователем
+	cookie := http.Cookie{
+		Name:     "selected_user",
+		Value:    request.UserID,
+		Path:     "/",
+		MaxAge:   365 * 24 * 60 * 60, // 1 год
+		HttpOnly: false,              // Доступен для JavaScript
+		Secure:   true,               // Только для HTTPS
+		SameSite: http.SameSiteLaxMode,
+	}
+	http.SetCookie(w, &cookie)
+
 	// Перенаправляем на главную страницу с новым user_id
 	http.Redirect(w, r, "/?user_id="+request.UserID, http.StatusSeeOther)
 }
@@ -930,11 +954,15 @@ func main() {
 			http.Redirect(w, r, "/?user_id="+userID, http.StatusSeeOther)
 			return
 		}
-		userID := r.URL.Query().Get("user_id")
-		if userID == "" {
-			http.Error(w, "User ID is required", http.StatusBadRequest)
+
+		// Проверяем наличие cookie с выбранным пользователем
+		if cookie, err := r.Cookie("selected_user"); err == nil {
+			// Если cookie найден, перенаправляем на страницу пользователя
+			http.Redirect(w, r, "/?user_id="+cookie.Value, http.StatusSeeOther)
 			return
 		}
+
+		// Если cookie не найден, показываем страницу выбора пользователя
 		indexHandler(w, r)
 	})
 
