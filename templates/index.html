@@ -598,11 +598,17 @@
 
         function showFactModal() {
             const userId = document.querySelector('.attendance-section').dataset.currentUser;
+            if (!userId) {
+                console.error('User ID not found');
+                alert('Ошибка: не найден ID пользователя');
+                return;
+            }
+
             // Получаем сохраненный план
             fetch(`/get-plan?user_id=${userId}`)
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error('Ошибка при получении плана');
+                        throw new Error(`Ошибка при получении плана: ${response.status}`);
                     }
                     return response.json();
                 })
@@ -696,6 +702,8 @@
                             </div>
                         `;
                         console.log('Добавлена задача в HTML:', id);
+                    } else {
+                        console.warn('Пропущена строка с недостаточным количеством ячеек:', cells);
                     }
                 }
             }
@@ -720,6 +728,11 @@
                         </div>
                     `;
                 });
+            }
+            
+            if (!html) {
+                console.error('Не удалось сгенерировать HTML из плана');
+                return '';
             }
             
             console.log('Сгенерирован HTML:', html);

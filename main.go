@@ -844,7 +844,12 @@ func main() {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"content": content})
+		if err := json.NewEncoder(w).Encode(map[string]string{"content": content}); err != nil {
+			log.Printf("Error encoding response: %v", err)
+			http.Error(w, "Error encoding response", http.StatusInternalServerError)
+			return
+		}
+		log.Printf("Successfully returned plan for user %s", userID)
 	})
 
 	// Добавляем обработчик для получения новых задач
