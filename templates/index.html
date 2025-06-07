@@ -435,12 +435,13 @@
                 planModal.show();
                 
                 // Автоматически сохраняем план
+                const userId = document.querySelector('.attendance-section').dataset.currentUser;
                 fetch('/save-plan', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
                     },
-                    body: `content=${encodeURIComponent(table)}`
+                    body: `content=${encodeURIComponent(table)}&user_id=${userId}`
                 })
                 .then(response => response.json())
                 .then(data => {
@@ -540,7 +541,8 @@
         }
 
         function showMyPlan() {
-            fetch('/get-plan')
+            const userId = document.querySelector('.attendance-section').dataset.currentUser;
+            fetch(`/get-plan?user_id=${userId}`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.content) {
@@ -595,8 +597,9 @@
         }
 
         function showFactModal() {
+            const userId = document.querySelector('.attendance-section').dataset.currentUser;
             // Получаем сохраненный план
-            fetch('/get-plan')
+            fetch(`/get-plan?user_id=${userId}`)
                 .then(response => response.json())
                 .then(data => {
                     console.log('Получены данные плана:', data);
@@ -607,7 +610,7 @@
                     }
 
                     // Получаем новые задачи
-                    fetch('/get-new-tasks')
+                    fetch(`/get-new-tasks?user_id=${userId}`)
                         .then(response => response.json())
                         .then(newTasks => {
                             console.log('Received new tasks:', newTasks);
@@ -740,49 +743,24 @@
         function selectUser(userId) {
             console.log('Starting user selection process for user ID:', userId);
             
-            // Отправляем POST запрос для обновления текущего пользователя
-            console.log('Sending request to /set-current-user with user ID:', userId);
-            fetch('/set-current-user', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    user_id: userId
-                })
-            })
-            .then(response => {
-                console.log('Received response from /set-current-user:', response.status, response.statusText);
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                console.log('Response data from /set-current-user:', data);
-                // Обновляем data-атрибут с текущим пользователем
-                const attendanceSection = document.querySelector('.attendance-section');
-                console.log('Current attendance section:', attendanceSection);
-                console.log('Current data-current-user value:', attendanceSection.dataset.currentUser);
-                attendanceSection.dataset.currentUser = userId;
-                console.log('Updated data-current-user value:', attendanceSection.dataset.currentUser);
-                
-                // Обновляем таблицу посещаемости
-                console.log('Updating attendance table...');
-                updateAttendanceTable();
-                
-                // Перезагружаем страницу для обновления списка задач
-                window.location.reload();
-            })
-            .catch(error => {
-                console.error('Error in user selection process:', error);
-                console.error('Error stack:', error.stack);
-                alert('Ошибка при обновлении пользователя: ' + error.message);
-            });
+            // Обновляем data-атрибут с текущим пользователем
+            const attendanceSection = document.querySelector('.attendance-section');
+            console.log('Current attendance section:', attendanceSection);
+            console.log('Current data-current-user value:', attendanceSection.dataset.currentUser);
+            attendanceSection.dataset.currentUser = userId;
+            console.log('Updated data-current-user value:', attendanceSection.dataset.currentUser);
+            
+            // Обновляем таблицу посещаемости
+            console.log('Updating attendance table...');
+            updateAttendanceTable();
+            
+            // Перезагружаем страницу для обновления списка задач
+            window.location.href = `/?user_id=${userId}`;
         }
 
         function updateAttendanceTable() {
-            fetch('/api/attendance')
+            const userId = document.querySelector('.attendance-section').dataset.currentUser;
+            fetch(`/api/attendance?user_id=${userId}`)
                 .then(response => response.json())
                 .then(data => {
                     const tbody = document.getElementById('attendanceTableBody');
