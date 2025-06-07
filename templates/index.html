@@ -600,9 +600,14 @@
 
         function showFactModal() {
             const userId = document.querySelector('.attendance-section').dataset.currentUser;
+            console.log('Запрашиваем план для пользователя:', userId);
+            
             // Получаем сохраненный план
             fetch('/get-plan?user_id=' + userId)
-                .then(response => response.json())
+                .then(response => {
+                    console.log('Получен ответ от сервера:', response.status, response.statusText);
+                    return response.json();
+                })
                 .then(data => {
                     console.log('Получены данные плана:', data);
                     if (!data || !data.content) {
@@ -612,10 +617,14 @@
                     }
 
                     // Получаем новые задачи
+                    console.log('Запрашиваем новые задачи для пользователя:', userId);
                     fetch('/get-new-tasks?user_id=' + userId)
-                        .then(response => response.json())
+                        .then(response => {
+                            console.log('Получен ответ от сервера (новые задачи):', response.status, response.statusText);
+                            return response.json();
+                        })
                         .then(newTasks => {
-                            console.log('Received new tasks:', newTasks);
+                            console.log('Получены новые задачи:', newTasks);
                             const formattedContent = formatFactContent(data.content, newTasks);
                             console.log('Форматирование содержимого:', data.content);
                             console.log('Сгенерирован HTML:', formattedContent);

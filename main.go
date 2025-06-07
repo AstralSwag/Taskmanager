@@ -635,14 +635,21 @@ func getPlanHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	today := time.Now().UTC().Format("2006-01-02")
+	// Получаем текущую дату в московской временной зоне
+	moscowLoc, err := time.LoadLocation("Europe/Moscow")
+	if err != nil {
+		http.Error(w, fmt.Sprintf("error loading timezone: %v", err), http.StatusInternalServerError)
+		return
+	}
+	today := time.Now().In(moscowLoc).Format("2006-01-02")
+
 	query := `
 		SELECT plan 
 		FROM plans 
 		WHERE user_id = $1 AND date = $2
 	`
 	var plan string
-	err := db.QueryRow(query, userID, today).Scan(&plan)
+	err = db.QueryRow(query, userID, today).Scan(&plan)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			w.Header().Set("Content-Type", "application/json")
