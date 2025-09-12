@@ -23,21 +23,15 @@ FROM alpine:latest
 
 WORKDIR /app
 
-# Устанавливаем необходимые пакеты для работы SQLite и временных зон
-RUN apk --no-cache add ca-certificates sqlite tzdata
-
-# Создаем директорию для данных
-RUN mkdir -p /app/data
+# Устанавливаем необходимые пакеты для работы с временными зонами
+RUN apk --no-cache add ca-certificates tzdata
 
 # Копируем собранное приложение из этапа сборки
 COPY --from=builder /app/main .
 COPY --from=builder /app/static ./static
 COPY --from=builder /app/templates ./templates
 COPY --from=builder /app/users.json ./users.json
-COPY --from=builder /app/init.sql ./init.sql
-
-# Инициализируем базу данных
-RUN sqlite3 /app/data/astralswag.db < /app/init.sql
+COPY --from=builder /app/init-postgres.sql ./init-postgres.sql
 
 EXPOSE 8080
 

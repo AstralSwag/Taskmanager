@@ -7,24 +7,11 @@ services:
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=${DB_NAME}
+      - DB_SSLMODE=${DB_SSLMODE}
       - TZ=Europe/Moscow
     volumes:
       - ./static:/app/static
       - ./templates:/app/templates
-      - ./data:/app/data
-    depends_on:
-      postgres:
-        condition: service_healthy
     restart: unless-stopped
     ports:
       - "18080:8080"
-    networks:
-      - app-network
-
-networks:
-  app-network:
-    driver: bridge
-
-volumes:
-  postgres_data:
-    driver: local

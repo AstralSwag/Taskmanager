@@ -448,6 +448,27 @@ func loadUsers() error {
 	return nil
 }
 
+func initDatabase() error {
+	log.Printf("Initializing database schema...")
+
+	// Читаем SQL-скрипт инициализации
+	sqlBytes, err := os.ReadFile("init-postgres.sql")
+	if err != nil {
+		log.Printf("Error reading init-postgres.sql: %v", err)
+		return err
+	}
+
+	// Выполняем SQL-скрипт
+	_, err = db.Exec(string(sqlBytes))
+	if err != nil {
+		log.Printf("Error executing init-postgres.sql: %v", err)
+		return err
+	}
+
+	log.Printf("Database schema initialized successfully")
+	return nil
+}
+
 func initAttendanceTable() error {
 	log.Printf("Initializing attendance table...")
 
@@ -460,34 +481,15 @@ func initAttendanceTable() error {
 		log.Printf("Current time in PostgreSQL during table initialization: %s", pgNow.Format("2006-01-02 15:04:05.000000 -0700"))
 	}
 
-	query := `
-		CREATE TABLE IF NOT EXISTS attendance (
-			id SERIAL PRIMARY KEY,
-			user_id VARCHAR(255) NOT NULL,
-			is_office BOOLEAN NOT NULL DEFAULT false,
-			is_today BOOLEAN NOT NULL DEFAULT true,
-			created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			date_part DATE GENERATED ALWAYS AS (DATE(created_at AT TIME ZONE 'Europe/Moscow')) STORED,
-			UNIQUE(user_id, date_part, is_today)
-		);
-		CREATE INDEX IF NOT EXISTS idx_attendance_user_created ON attendance(user_id, created_at DESC);
-		CREATE INDEX IF NOT EXISTS idx_attendance_date_part ON attendance(date_part);`
-
-	_, err = db.Exec(query)
-	if err != nil {
-		log.Printf("Error creating attendance table: %v", err)
-		return err
-	}
-
-	log.Printf("Attendance table initialized successfully")
-	return nil
+	// Теперь используем общую функцию инициализации
+	return initDatabase()
 }
 
 func getLastPlanDate(userID string) (time.Time, error) {
 	var lastDate time.Time
 	err := db.QueryRow(`
 		SELECT created_at 
-		FROM plans 
+		FROM planfact_plans 
 		WHERE user_id = $1 
 		ORDER BY created_at DESC 
 		LIMIT 1`, userID).Scan(&lastDate)
@@ -510,7 +512,7 @@ func getAttendanceStatus() ([]UserAttendance, error) {
 	// Получаем все записи за сегодня и завтра
 	rows, err := db.Query(`
 		SELECT user_id, is_office, is_today, created_at
-		FROM attendance
+		FROM planfact_attendance
 		WHERE date_part IN ($1, $2)
 		ORDER BY created_at DESC
 	`, today, tomorrow)
@@ -572,9 +574,9 @@ func updateAttendanceStatus(userID string, isOffice bool, isToday bool) error {
 
 	// Обновляем или создаем запись
 	_, err = db.Exec(`
-		INSERT INTO attendance (user_id, is_office, is_today, created_at)
+		INSERT INTO planfact_attendance (user_id, is_office, is_today, created_at)
 		VALUES ($1, $2, $3, $4)
-		ON CONFLICT (user_id, is_today) 
+		ON CONFLICT (user_id, date_part, is_today) 
 		DO UPDATE SET 
 			is_office = $2,
 			created_at = $4
@@ -611,7 +613,7 @@ func savePlanHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Сохраняем план
 	_, err = db.Exec(`
-		INSERT INTO plans (user_id, date, plan, created_at, updated_at)
+		INSERT INTO planfact_plans (user_id, date, plan, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $4)
 		ON CONFLICT (user_id, date) 
 		DO UPDATE SET 
@@ -645,7 +647,7 @@ func getPlanHandler(w http.ResponseWriter, r *http.Request) {
 
 	query := `
 		SELECT plan 
-		FROM plans 
+		FROM planfact_plans 
 		WHERE user_id = $1 AND date = $2
 	`
 	var plan string
@@ -913,7 +915,7 @@ func main() {
 			}
 
 			query := `
-				INSERT INTO plans (user_id, date, plan, created_at, updated_at)
+				INSERT INTO planfact_plans (user_id, date, plan, created_at, updated_at)
 				VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 				ON CONFLICT (user_id, date) 
 				DO UPDATE SET plan = $3, updated_at = CURRENT_TIMESTAMP
@@ -931,7 +933,7 @@ func main() {
 			var plan string
 			err := db.QueryRow(`
 				SELECT plan 
-				FROM plans 
+				FROM planfact_plans 
 				WHERE user_id = $1 AND date = $2
 			`, userID, date).Scan(&plan)
 
