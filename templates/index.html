@@ -731,6 +731,25 @@
             return html;
         }
 
+        function copyPlan() {
+            const planTable = document.getElementById('planTable');
+            navigator.clipboard.writeText(planTable.textContent).then(() => {
+                // Показываем уведомление
+                const toast = new bootstrap.Toast(document.getElementById('copyToast'), {
+                    delay: 2000,
+                    animation: true
+                });
+                toast.show();
+                
+                // Закрываем модальное окно
+                const modal = bootstrap.Modal.getInstance(document.getElementById('planModal'));
+                modal.hide();
+            }).catch(err => {
+                console.error('Ошибка при копировании плана:', err);
+                alert('Ошибка при копировании в буфер обмена');
+            });
+        }
+
         function copyFact() {
             const factTable = document.getElementById('factTable');
             navigator.clipboard.writeText(factTable.textContent).then(() => {
@@ -743,11 +762,16 @@
                 
                 // Закрываем модальные окна
                 const factTableModal = bootstrap.Modal.getInstance(document.getElementById('factTableModal'));
-                factTableModal.hide();
+                if (factTableModal) {
+                    factTableModal.hide();
+                }
                 const factModal = bootstrap.Modal.getInstance(document.getElementById('factModal'));
-                factModal.hide();
+                if (factModal) {
+                    factModal.hide();
+                }
             }).catch(err => {
-                console.error('Ошибка при копировании:', err);
+                console.error('Ошибка при копировании факта:', err);
+                alert('Ошибка при копировании в буфер обмена');
             });
         }
 
