@@ -2,64 +2,29 @@ services:
   app:
     build: .
     environment:
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=${REPLICATOR_USER}
-      - DB_PASSWORD=${REPLICATOR_PASSWORD}
-      - DB_NAME=${REPLICATOR_DB}
-      - DB_SSLMODE=disable
-      - TZ=Europe/Moscow 
-    labels:
-      - "traefik.enable=true"
-      - "traefik.docker.network=traefik-net"
-      - "traefik.http.routers.planfact.rule=Host(`planfact.astralswag.ru`)"
-      - "traefik.http.routers.planfact.entrypoints=websecure"
-      - "traefik.http.routers.planfact.tls=true"
-      - "traefik.http.services.planfact.loadbalancer.server.port=8080"
-      # Basic Auth middleware
-      - "traefik.http.routers.planfact.middlewares=planfact-auth"
-      - "traefik.http.middlewares.planfact-auth.basicauth.users=${HTTP_BASIC_AUTH}"
-      - "traefik.http.middlewares.planfact-auth.basicauth.removeheader=true"       
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - TZ=Europe/Moscow
     volumes:
       - ./static:/app/static
       - ./templates:/app/templates
       - ./data:/app/data
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "18080:8080"
     networks:
       - app-network
-      - traefik-net
-
-  postgres:
-    image: postgres:15
-    environment:
-      POSTGRES_USER: ${REPLICATOR_USER}
-      POSTGRES_PASSWORD: ${REPLICATOR_PASSWORD}
-      POSTGRES_DB: ${REPLICATOR_DB}
-      PLANE_HOST: ${PLANE_HOST}
-      PLANE_PORT: ${PLANE_PORT}
-      PLANE_DB: ${PLANE_DB}
-      REPLICATOR_USER: ${REPLICATOR_USER}
-      REPLICATOR_PASSWORD: ${REPLICATOR_PASSWORD}   
-    volumes:
-      - ./init-scripts:/docker-entrypoint-initdb.d
-      - /opt/planfact/Taskmanager/data/chain.pem:/etc/ssl/postgresql/root.crt
-    command: postgres -c wal_level=logical -c max_replication_slots=20
-    extra_hosts:
-      - "n8n.it4retail.tech:188.225.81.231"
-    restart: unless-stopped
-    ports:
-      - "${REPLICA_PORT}:5432"
-    user: postgres
-    networks:
-      - app-network
-      - traefik-net
 
 networks:
   app-network:
     driver: bridge
-  traefik-net:
-    external: true
+
+volumes:
+  postgres_data:
+    driver: local
