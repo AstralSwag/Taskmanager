@@ -19,6 +19,11 @@
         a {
             user-select: text;
         }
+        
+        /* Разрешаем выделение текста для markdown таблиц */
+        .plan-table, #planTable, #factTable, pre {
+            user-select: text !important;
+        }
     </style>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="/static/css/style.css" rel="stylesheet">
@@ -731,9 +736,43 @@
             return html;
         }
 
+        function copyToClipboard(text) {
+            // Пробуем современный API
+            if (navigator.clipboard && window.isSecureContext) {
+                return navigator.clipboard.writeText(text);
+            } else {
+                // Fallback для старых браузеров
+                return new Promise((resolve, reject) => {
+                    const textArea = document.createElement('textarea');
+                    textArea.value = text;
+                    textArea.style.position = 'fixed';
+                    textArea.style.left = '-999999px';
+                    textArea.style.top = '-999999px';
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+                    
+                    try {
+                        const successful = document.execCommand('copy');
+                        document.body.removeChild(textArea);
+                        if (successful) {
+                            resolve();
+                        } else {
+                            reject(new Error('Копирование не удалось'));
+                        }
+                    } catch (err) {
+                        document.body.removeChild(textArea);
+                        reject(err);
+                    }
+                });
+            }
+        }
+
         function copyPlan() {
             const planTable = document.getElementById('planTable');
-            navigator.clipboard.writeText(planTable.textContent).then(() => {
+            const text = planTable.textContent || planTable.innerText;
+            
+            copyToClipboard(text).then(() => {
                 // Показываем уведомление
                 const toast = new bootstrap.Toast(document.getElementById('copyToast'), {
                     delay: 2000,
@@ -743,16 +782,20 @@
                 
                 // Закрываем модальное окно
                 const modal = bootstrap.Modal.getInstance(document.getElementById('planModal'));
-                modal.hide();
+                if (modal) {
+                    modal.hide();
+                }
             }).catch(err => {
                 console.error('Ошибка при копировании плана:', err);
-                alert('Ошибка при копировании в буфер обмена');
+                alert('Ошибка при копировании в буфер обмена: ' + err.message);
             });
         }
 
         function copyFact() {
             const factTable = document.getElementById('factTable');
-            navigator.clipboard.writeText(factTable.textContent).then(() => {
+            const text = factTable.textContent || factTable.innerText;
+            
+            copyToClipboard(text).then(() => {
                 // Показываем уведомление
                 const toast = new bootstrap.Toast(document.getElementById('copyToast'), {
                     delay: 2000,
@@ -771,7 +814,7 @@
                 }
             }).catch(err => {
                 console.error('Ошибка при копировании факта:', err);
-                alert('Ошибка при копировании в буфер обмена');
+                alert('Ошибка при копировании в буфер обмена: ' + err.message);
             });
         }
 
