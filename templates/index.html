@@ -737,30 +737,49 @@
         }
 
         function copyToClipboard(text) {
-            // Пробуем современный API
+            console.log('Attempting to copy text:', text.substring(0, 100) + '...');
+            console.log('navigator.clipboard available:', !!navigator.clipboard);
+            console.log('isSecureContext:', window.isSecureContext);
+            
+            // Пробуем современный API только если доступен и контекст безопасный
             if (navigator.clipboard && window.isSecureContext) {
-                return navigator.clipboard.writeText(text);
+                console.log('Using modern clipboard API');
+                return navigator.clipboard.writeText(text).then(() => {
+                    console.log('Modern clipboard API succeeded');
+                }).catch(err => {
+                    console.error('Modern clipboard API failed:', err);
+                    throw err;
+                });
             } else {
-                // Fallback для старых браузеров
+                console.log('Using fallback clipboard method');
+                // Fallback для старых браузеров или HTTP
                 return new Promise((resolve, reject) => {
                     const textArea = document.createElement('textarea');
                     textArea.value = text;
                     textArea.style.position = 'fixed';
                     textArea.style.left = '-999999px';
                     textArea.style.top = '-999999px';
+                    textArea.style.opacity = '0';
+                    textArea.setAttribute('readonly', '');
                     document.body.appendChild(textArea);
-                    textArea.focus();
+                    
+                    // Выделяем текст
                     textArea.select();
+                    textArea.setSelectionRange(0, 99999); // Для мобильных устройств
                     
                     try {
                         const successful = document.execCommand('copy');
+                        console.log('execCommand copy result:', successful);
                         document.body.removeChild(textArea);
                         if (successful) {
+                            console.log('Fallback clipboard method succeeded');
                             resolve();
                         } else {
-                            reject(new Error('Копирование не удалось'));
+                            console.error('execCommand copy returned false');
+                            reject(new Error('Команда копирования не выполнена'));
                         }
                     } catch (err) {
+                        console.error('execCommand copy threw error:', err);
                         document.body.removeChild(textArea);
                         reject(err);
                     }

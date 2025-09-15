@@ -1,0 +1,39 @@
+stages:
+  - deploy
+
+# Шаблон для деплоя (чтобы не дублировать код)
+.deploy_template:
+  stage: deploy
+  before_script:
+    # Установка SSH-ключа для CI job
+    - 'which ssh-agent || ( apt-get update -y && apt-get install openssh-client -y )'
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - ssh-keyscan $SERVER_HOST >> ~/.ssh/known_hosts  # Добавляем хост в known_hosts
+    - chmod 644 ~/.ssh/known_hosts
+  script:
+    # SSH на сервер и деплой с инъекцией env vars
+    - ssh $DEPLOY_USER@$SERVER_HOST "
+        cd /opt/planfact &&  # Путь на сервере, где лежит репозиторий
+        git pull origin master &&  # Pull свежий код (предполагаем branch main)
+        export DB_HOST='$DB_HOST' &&  # Инъекция всех vars (добавьте все нужные)
+        export DB_PASSWORD='$DB_PASSWORD' && 
+        export DB_USER='$DB_USER' &&
+        export DB_NAME='$DB_NAME' &&
+        export DB_PORT='$DB_PORT' &&
+        export DB_SSLMODE=disable &&
+        docker-compose down &&  # Остановка старых контейнеров
+        docker-compose pull &&  # Pull свежих образов, если нужно
+        docker-compose up -d --build  # Запуск с build, если приложение меняется
+      "
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master"'  # Только для main branch, настройте по вкусу
+  when: manual  # Manual trigger - "по кнопке"
+
+# Job для Cora_VM_Plane
+deploy_to_server1:
+  extends: .deploy_template
+  variables:
+    SERVER_HOST: $SERVER_CORA_VM_PLANE  # Ссылка на CI var
